@@ -82,12 +82,49 @@ When the user clicks "Login" in FillGST:
 | POST | `/portal/otp` | `{gstin, otp}` | `{step: 'done'}` |
 | POST | `/portal/fetch2b` | `{gstin, period}` | `{data, size}` |
 | POST | `/portal/disconnect` | `{gstin}` | `{ok}` |
+| POST | `/portal/dispatch` | `{gstin, action, formNo, period?, method, body?, params?}` | `{ok, status?, refId?, data?, raw, endpoint}` or `{ok:false, errorCode?, error, retryable?, reauthNeeded?}` |
+| POST | `/portal/keepalive` | `{gstin}` | `{ok, statuses}` |
 | GET | `/dsc/providers` | — | `{ok, providers}` |
 | POST | `/dsc/providers` | `DscProvider[]` | `{ok}` |
 | POST | `/dsc/certificates` | `{providerId}` | `{ok, certificates}` |
 | POST | `/dsc/login` | `{providerId, slot, pin}` | `{ok}` |
 | POST | `/dsc/sign` | `{providerId, slot, payloadBase64, digestAlgo?, detached?}` | `{ok, result}` |
 | POST | `/dsc/hash` | `{payloadBase64}` | `{ok, sha256, hashedAt}` |
+
+## Action-code dispatcher (`POST /portal/dispatch`)
+
+GSTN portal calls all share a single dispatcher pattern (mirroring CompuGST's `GstApi.callApi()`). Every call is identified by an **action code** + **form number** rather than a hand-coded URL.
+
+```jsonc
+// fetch GSTR-1 B2B section for March 2026 on GSTIN 07AAGCN6684E1Z7
+POST /portal/dispatch
+{
+  "gstin":   "07AAGCN6684E1Z7",
+  "action":  "B2B",
+  "formNo":  "1",
+  "period":  "032026",
+  "method":  "GET"
+}
+```
+
+Action codes are documented in `docs/compugst-knowledge.md` §1 of the FillGST web-app repo. Common ones:
+
+- **Return-agnostic**: `RETSAVE` (PUT), `RETSUBMIT` (POST), `RETFILE` (PUT), `RETSUM` (GET), `RETSTATUS` (GET), `RETOFFSET` (POST + `HTTPVerb:PUT`).
+- **Section pulls**: `B2B`, `B2BA`, `B2CL`, `B2CS`, `CDNR`, `CDNRA`, `EXP`, `IMPG`, `ISD`, `HSN`, `DOC`, `AT`, `TXP`, `ECOM`.
+- **IMS** (Oct 2024+): `IMS_FETCH`, `IMS_ACTION`, `IMS_RESET`, `IMS_REFRESH`.
+- **e-invoice** (NIC IRP): `EINV_AUTH`, `EINV_GENIRN`, `EINV_BULKGEN`, `EINV_CANCEL`, `EINV_GETIRN`, etc.
+- **e-waybill** (NIC EWB): `EWB_AUTH`, `EWB_GENERATE`, `EWB_UPDATE_VEHICLE`, `EWB_EXTEND`, `EWB_CANCEL`, etc.
+
+The dispatcher handles:
+- Quarterly period remap for GSTR-4 (DB stores 21–24, GSTN expects MM).
+- WAF-required `Referer` headers.
+- Common GSTN error shapes (`{status:0, error:{errorCode, message}}`).
+- Re-auth signal detection — returns `reauthNeeded: "FORCELOGIN" | "FORCEOTP"` so the caller can drive the right state-machine transition without parsing GSTN error codes itself.
+- Random 300–700 ms delay before each call to soften WAF rate-limit signal.
+
+### Keepalive heartbeat (`POST /portal/keepalive`)
+
+GSTN idle-timeouts a session after ~15 minutes. CompuGST's pattern is to ping `/returns/auth/api/keepalive` and `/services/auth/api/keepalive` every ~5 minutes. Call `POST /portal/keepalive {gstin}` from the FillGST web app on a 4-minute interval while the user has an active session for that GSTIN.
 
 ## DSC signing (Phase 0 stub)
 

@@ -45,6 +45,15 @@ interface Session {
 }
 const sessions = new Map<string, Session>();
 
+/**
+ * Cross-module session accessor used by /portal/dispatch and
+ * /portal/keepalive routes. Returns undefined when no live session
+ * exists for the gstin.
+ */
+export function getSession(gstin: string): Session | undefined {
+  return sessions.get(gstin);
+}
+
 // ── Cookie persistence ─────────────────────────────────────
 
 async function ensureCookieDir() {

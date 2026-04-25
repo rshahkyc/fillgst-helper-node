@@ -26,9 +26,10 @@ import express from "express";
 import cors from "cors";
 import { runPortalServer } from "./portal-runner.js";
 import { registerDscRoutes } from "./dsc/router.js";
+import { registerPortalDispatcherRoutes } from "./portal/router.js";
 
 const PORT = Number(process.env.FILLGST_HELPER_PORT ?? "9876");
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 const app = express();
 
@@ -72,8 +73,12 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, version: VERSION, name: "FillGST Local Helper" });
 });
 
-// Mount portal routes
+// Mount portal routes (login / captcha / OTP / fetch2b / disconnect)
 runPortalServer(app);
+
+// Mount the action-code dispatcher (covers every other GSTN call)
+// + keepalive heartbeat
+registerPortalDispatcherRoutes(app);
 
 // Mount DSC routes
 registerDscRoutes(app);
