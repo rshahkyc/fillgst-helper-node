@@ -1,0 +1,30 @@
+{
+  "name": "fillgst-helper-node",
+  "version": "0.2.0",
+  "private": true,
+  "description": "FillGST Local Helper — runs Playwright + DSC bridge on each user's PC for the no-OTP GST portal flow and PKCS#11 USB-token signing",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "bundle": "node scripts/bundle.mjs",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "express": "^4.21.0",
+    "playwright-core": "^1.49.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/crypto-js": "^4.2.2",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
