@@ -1,6 +1,6 @@
 {
   "name": "fillgst-helper-node",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "FillGST Local Helper — runs Playwright + DSC bridge on each user's PC for the no-OTP GST portal flow and PKCS#11 USB-token signing",
   "type": "module",

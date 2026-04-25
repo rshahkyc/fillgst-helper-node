@@ -29,7 +29,7 @@ import { registerDscRoutes } from "./dsc/router.js";
 import { registerPortalDispatcherRoutes } from "./portal/router.js";
 
 const PORT = Number(process.env.FILLGST_HELPER_PORT ?? "9876");
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 
 const app = express();
 

@@ -84,6 +84,8 @@ When the user clicks "Login" in FillGST:
 | POST | `/portal/disconnect` | `{gstin}` | `{ok}` |
 | POST | `/portal/dispatch` | `{gstin, action, formNo, period?, method, body?, params?}` | `{ok, status?, refId?, data?, raw, endpoint}` or `{ok:false, errorCode?, error, retryable?, reauthNeeded?}` |
 | POST | `/portal/keepalive` | `{gstin}` | `{ok, statuses}` |
+| GET | `/portal/api-map` | — | `{ok, map}` |
+| GET | `/portal/api-map/:section/:key` | (query: substitutions) | `{ok, endpoint}` |
 | GET | `/dsc/providers` | — | `{ok, providers}` |
 | POST | `/dsc/providers` | `DscProvider[]` | `{ok}` |
 | POST | `/dsc/certificates` | `{providerId}` | `{ok, certificates}` |
@@ -125,6 +127,18 @@ The dispatcher handles:
 ### Keepalive heartbeat (`POST /portal/keepalive`)
 
 GSTN idle-timeouts a session after ~15 minutes. CompuGST's pattern is to ping `/returns/auth/api/keepalive` and `/services/auth/api/keepalive` every ~5 minutes. Call `POST /portal/keepalive {gstin}` from the FillGST web app on a 4-minute interval while the user has an active session for that GSTIN.
+
+### API map (`GET /portal/api-map` and `GET /portal/api-map/:section/:key`)
+
+Helper bundles `data/gst-api-map.json` — a config-driven catalogue of every documented portal endpoint (auth, navigation, returns dashboard, GSTR-1/2A/2B/3B, IMS, e-invoice). When GSTN changes a URL, edit the JSON and bump the helper version without touching dispatcher code.
+
+```bash
+GET /portal/api-map                     # Full catalogue
+GET /portal/api-map/auth/keepalive      # Single endpoint lookup
+GET /portal/api-map/gstr2b/getjson?period=032026   # With placeholder substitution
+```
+
+Sections: `auth`, `navigation`, `returns_dashboard_apis`, `gstr1`, `gstr2a`, `gstr2b`, `gstr3b`, `ims`, `architecture_notes`, `login_flow`. Substitutions: `{gstin}`, `{period}`, `{random}` (a Math.random() float for cache-busted captcha calls).
 
 ## DSC signing (Phase 0 stub)
 

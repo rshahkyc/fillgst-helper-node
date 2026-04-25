@@ -1,0 +1,1300 @@
+{
+  "version": "1.0",
+  "captured_on": "2026-04-12",
+  "gstin": "{gstin}",
+  "base_domains": {
+    "services": "services.gst.gov.in",
+    "returns": "return.gst.gov.in",
+    "gstr2b": "gstr2b.gst.gov.in",
+    "einvoice": "einvoice.gst.gov.in"
+  },
+  "auth": {
+    "login_page": {
+      "url": "https://services.gst.gov.in/services/login",
+      "method": "GET",
+      "notes": "Login form. Captcha appears AFTER typing in username field."
+    },
+    "captcha": {
+      "url": "https://services.gst.gov.in/services/captcha?rnd={random}",
+      "method": "GET",
+      "notes": "Returns captcha image. Random float parameter."
+    },
+    "authenticate": {
+      "url": "https://services.gst.gov.in/services/authenticate",
+      "method": "POST",
+      "notes": "Submit username + password + captcha. Returns session cookies."
+    },
+    "user_status": {
+      "url": "https://services.gst.gov.in/services/api/ustatus",
+      "method": "GET",
+      "notes": "Check if user is logged in."
+    },
+    "keepalive": {
+      "url": "https://services.gst.gov.in/services/auth/api/keepalive",
+      "method": "GET",
+      "notes": "Keep session alive. Call periodically to prevent timeout."
+    },
+    "logout": {
+      "url": "https://services.gst.gov.in/services/logout",
+      "method": "GET"
+    }
+  },
+  "navigation": {
+    "dashboard": {
+      "url": "https://services.gst.gov.in/services/auth/fowelcome",
+      "notes": "Main dashboard after login."
+    },
+    "returns_quicklinks": {
+      "url": "https://services.gst.gov.in/services/auth/quicklinks/returns",
+      "notes": "Returns quick links page. Use this to navigate to returns subdomain (handles session handoff)."
+    },
+    "returns_dashboard": {
+      "url": "https://return.gst.gov.in/returns/auth/dashboard",
+      "notes": "Returns dashboard. MUST navigate via portal links (not direct URL) for session handoff."
+    },
+    "filed_returns": {
+      "url": "https://return.gst.gov.in/returns/auth/efiledReturns",
+      "notes": "View filed returns."
+    },
+    "ims_dashboard": {
+      "url": "https://return.gst.gov.in/imsweb/auth/imsDashboard",
+      "notes": "Invoice Management System dashboard."
+    },
+    "einvoice_dashboard": {
+      "url": "https://einvoice.gst.gov.in/einvoice/dashboard",
+      "notes": "e-Invoice dashboard."
+    },
+    "track_return_status": {
+      "url": "https://return.gst.gov.in/returns/auth/trackreturnstatus"
+    },
+    "itc_forms": {
+      "url": "https://return.gst.gov.in/returns2/auth/itcform/links"
+    }
+  },
+  "returns_dashboard_apis": {
+    "dropdown": {
+      "url": "https://return.gst.gov.in/returns/auth/api/dropdown",
+      "method": "GET",
+      "notes": "Returns FY/Quarter/Period dropdown data."
+    },
+    "rolestatus": {
+      "url": "https://return.gst.gov.in/returns/auth/api/rolestatus?rtn_prd={MMYYYY}",
+      "method": "GET",
+      "notes": "Returns filing status of all return types for a given period. rtn_prd format: MMYYYY (e.g., 022026 for Feb 2026)."
+    },
+    "alerts_count": {
+      "url": "https://services.gst.gov.in/services2/auth/web/alerts/count",
+      "method": "POST",
+      "notes": "Get alert notifications count."
+    }
+  },
+  "gstr1": {
+    "type": "direct_api_and_offline_download",
+    "page_url": "https://return.gst.gov.in/returns/auth/gstr1",
+    "offline_download_page": "https://return.gst.gov.in/returns/auth/gstr/offlinedownload",
+    "notes": "GSTR-1 has BOTH direct instant APIs (like GSTR-3B) AND offline download (async generate). The direct APIs return ALL data instantly — summary, invoices per section, line-item detail, HSN, doc issue. Offline download gives a single JSON file. RECOMMENDED: Use direct APIs for structured access, offline download only if you need the raw file.",
+    "section_names": {
+      "invoice_sections": ["B2B", "B2BA", "CDNR", "CDNRA", "EXP", "EXPA", "B2CL", "B2CLA", "CDNUR", "CDNURA", "AT", "ATA", "TXPD", "TXPDA"],
+      "consolidated_sections": ["B2CS", "B2CSA"],
+      "other_sections": ["HSN", "NIL", "DOC"],
+      "ecommerce_sections": ["ECOM", "ECOMA", "SUPECOM", "SUPECOMA", "ECOM_DE", "ECOM_REG", "ECOM_SEZWOP", "ECOM_SEZWP", "ECOM_UNREG", "ECOMA_DE", "ECOMA_REG", "ECOMA_SEZWOP", "ECOMA_SEZWP", "ECOMA_UNREG"],
+      "summary_only_sections": ["B2B_4A", "B2B_4B", "B2B_6C", "B2B_SEZWOP", "B2B_SEZWP", "B2BA_4A", "B2BA_4B", "B2BA_6C", "B2BA_SEZWOP", "B2BA_SEZWP", "HSN_B2B", "HSN_B2C", "TTL_LIAB", "DOC_ISSUE"],
+      "notes": {
+        "B2CS_B2CSA": "CONSOLIDATED — B2CS/B2CSA do NOT work with the invoice API. Returns 'No pending invoices found'. B2CS is aggregated by rate/POS, NOT invoice-level. Use summary API for B2CS data.",
+        "total_sections": "46 sections in summary API, 27 in totalsummarycount API",
+        "verified_with": "Nine Packaging (07AAGCN6684E1Z7) Feb 2026 — 511 B2B, 5 CDNR, 5 EXP, 1 B2CL, 4 B2CS, 47 HSN, 3 DOC"
+      }
+    },
+    "apis": {
+      "form_details": {
+        "url": "https://return.gst.gov.in/returns/auth/api/formdetails?rtn_prd={MMYYYY}&rtn_typ=GSTR1",
+        "method": "GET",
+        "notes": "Return metadata: gstin, fy, period, status (FIL=filed), ARN, filing date, due date, auth signer, sumGenStatus (P=generated)."
+      },
+      "user_details": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/userdetails?ctin={GSTIN}",
+        "method": "GET",
+        "notes": "User/taxpayer info: regName, userType (NT=normal taxpayer), apprv_dt."
+      },
+      "total_summary_count": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/totalsummarycount?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "Section-wise record counts (27 sections). Returns: sec_count[{sec_name, err_cnt, pen_cnt, proc_cnt}]. Good for quick overview of what has data.",
+        "response_structure": "{gstin, ret_period, sec_count: [{sec_name, err_cnt, pen_cnt, proc_cnt}]}"
+      },
+      "total_summary_count_section": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/totalsummarycount?rtn_prd={MMYYYY}&sec_name={SECTION}",
+        "method": "GET",
+        "notes": "Per-section recipient breakdown with counterparty details.",
+        "response_structure": "{gstin, ret_period, sec_count: [{sec_name, cpty_cnts: [{ctin, err_cnt, proc_cnt, pen_cnt, trade_name, txp_typ}]}]}"
+      },
+      "summary": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/summary?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "response_size": "~17KB",
+        "notes": "THE KEY API — complete filed GSTR-1 summary. 46 sections with totals (ttl_rec, ttl_val, ttl_tax, ttl_igst, ttl_cgst, ttl_sgst, ttl_cess, chksum per section). Instant response. No generation needed.",
+        "response_structure": "{gstin, ret_period, chksum, isCptyLimitExceeded, newSumFlag, sec_sum: [{sec_nm, chksum, ttl_rec, ttl_tax, ttl_igst, ttl_sgst, ttl_cgst, ttl_val, ttl_cess}]}"
+      },
+      "invoice_all": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/invoice?inv=ALL&rtn_prd={MMYYYY}&sec_name={SECTION}&uploaded_by=SU",
+        "method": "GET",
+        "notes": "ALL invoices for a section. Wrapped in {status:1, data:{processedInvoice:[...]}}. Works for B2B, CDNR, EXP, B2CL, CDNUR, AT, TXPD, HSN, DOC, NIL. Does NOT work for B2CS/B2CSA (consolidated, not invoice-level). Returns all 511 B2B invoices in one call — no pagination even at high volume.",
+        "response_structure": {
+          "B2B": "{processedInvoice: [{inum, idt, val, invtxval, inviamt, invcamt, invsamt, invcsamt, ctin, flag}]}",
+          "CDNR": "{processedInvoice: [{val, ntty(C/D), nt_num, nt_dt, d_flag, invtxval, inviamt, invcamt, invsamt, invcsamt, ctin, flag}]}",
+          "EXP": "{processedInvoice: [{inum, idt, val, sbnum, sbdt, invtxval, inviamt, invcamt, invsamt, invcsamt, exp_typ(WOPAY/WPAY)}]}",
+          "B2CL": "{processedInvoice: [{inum, idt, val, pos, invtxval, inviamt, invcamt, invsamt, invcsamt}]}",
+          "HSN": "{processedInvoice: {'0': {hsn_b2b:[{rt,txval,iamt,camt,samt,csamt,num,hsn_sc,desc,uqc,qty}], hsn_b2c:[same keys]}}} — NOTE: nested under key '0', not an array. Sample: {rt:18, txval:18518.75, iamt:3333.37, camt:0, samt:0, csamt:0, num:1, hsn_sc:'39211900', desc:'OF OTHER PLASTICS', uqc:'NOS', qty:28875}",
+          "DOC": "{processedInvoice: [{doc_num, docs:[{num, from, to, totnum, cancel, net_issue}]}]}",
+          "note": "B2B list does NOT include e-Invoice fields (irn, srctyp, einvstatus). Only individual invoice detail API or geteinvdata include these."
+        }
+      },
+      "invoice_by_recipient": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/invoice?ctin={RECIPIENT_GSTIN}&rtn_prd={MMYYYY}&sec_name=B2B&uploaded_by=SU",
+        "method": "GET",
+        "notes": "Invoices filtered by recipient GSTIN. Same response structure as invoice_all."
+      },
+      "invoice_detail": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/invoice?ctin={RECIPIENT_GSTIN}&inum={INVOICE_NUM_YEAR}&rtn_prd={MMYYYY}&sec_name=B2B&uploaded_by=SU",
+        "method": "GET",
+        "notes": "Full invoice detail with line items. inum param is URL-encoded invoice number with _YYYY suffix (e.g. LRS%2FD%2F2526%2F02%2F12_2025). Returns b2b[].inv[] with itms[] array.",
+        "response_structure": "{b2b: [{ctin, inv: [{inum, idt, val, pos, rchrg, inv_typ, updby, cflag, flag, chksum, irn, irngendate, srctyp, itms: [{num, itm_det: {rt, txval, iamt, camt, samt, csamt}}]}]}]}",
+        "itms_notes": "itms[] contains ALL rate slabs (0%, 0.1%, 0.25%...40%) but only items with actual data have txval/iamt/camt/samt/csamt. Filter by Object.keys(itm_det).length > 1 to find items with data."
+      },
+      "summary_generate": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr1/summary/generate",
+        "method": "POST",
+        "notes": "Trigger GSTR-1 summary generation/refresh. Usually already generated (check formdetails.sumGenStatus=P)."
+      },
+      "validate": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr/save/valid?rtn_prd={MMYYYY}&rtn_typ=GSTR1",
+        "method": "GET",
+        "notes": "Check if save is valid for this return."
+      },
+      "upload_summary": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/upload/summary?rtn_prd={MMYYYY}&rtn_typ=GSTR1",
+        "method": "GET",
+        "notes": "Get upload summary."
+      },
+      "generate_json": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/download/generate?flag=0&rtn_prd={MMYYYY}&rtn_typ=GSTR1",
+        "method": "GET",
+        "notes": "Trigger JSON file generation for offline download. Async process. flag=0 for JSON."
+      },
+      "download_file": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/download/url?rtn_prd={MMYYYY}&rtn_typ=GSTR1&file_num=1",
+        "method": "GET",
+        "notes": "Download the generated JSON file. file_num is a VERSION number (not file splitting) — increments each time Generate is clicked. Always start with file_num=1 for the latest."
+      }
+    },
+    "einvoice_apis": {
+      "notes": "E-Invoice APIs are on return.gst.gov.in/einvoice/auth/api/ path. Available from GSTR-1 page. CRITICAL: geteinvdata has DUAL BEHAVIOR based on invoice volume. Low-volume accounts (~30 invoices) get instant JSON; high-volume accounts (~500+ invoices) trigger async file generation. The regular GSTR-1 invoice list API does NOT include e-Invoice fields (irn, einvstatus, srctyp) — only geteinvdata or individual invoice detail API have these.",
+      "geteinvdata": {
+        "url": "https://return.gst.gov.in/einvoice/auth/api/geteinvdata?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "THE KEY E-INVOICE API — but has DUAL BEHAVIOR. Low-volume: returns instant JSON with all e-Invoice data. High-volume: triggers async generation, returns {status:1, data:'{msg:..., token:...}'}. Subsequent calls return {status:0, error:{errorCode:'RTN_24', message:'File generation is still in progress'}}. After ~20 min, file appears in geteinvdetl download history.",
+        "behavior": {
+          "low_volume_instant": "Returns {status:1, data:'<JSON with b2b,cdnr,cdnur,exp,hsn>'} — tested with ~32 invoices (L.R. Sharma)",
+          "high_volume_async": "Returns {status:1, data:'{msg:\"Excel download is in progress...\", token:\"<hex>\"}'} — tested with ~511 invoices (Nine Packaging). Then check geteinvdetl for ready file."
+        },
+        "response_structure": {
+          "top_level": "{status: 1, data: <JSON string>}",
+          "data_keys": ["gstin", "fp", "b2b", "cdnr", "cdnur", "exp", "hsn"],
+          "b2b": "{ctin, trdname, inv: [{chksum, inum, idt, val, pos, rchrg, itms, inv_typ, irn, irngendate, einvstatus, autodft, autodftdt, srctyp}]}",
+          "b2b_itm_det": "{txval, iamt, camt, samt, csamt, rt}",
+          "hsn": "{hsn_b2b: [{rt, txval, iamt, camt, samt, csamt, num, hsn_sc, chksum, desc, uqc, qty}], hsn_b2c: []}",
+          "einvstatus_values": "ACT = Active",
+          "autodft_values": "Auto-populated = system auto-drafted into GSTR-1",
+          "srctyp_values": "E-Invoice = uploaded via e-Invoice system"
+        },
+        "important_note": "The regular GSTR-1 invoice?inv=PROCESSED API returns invoices but WITHOUT e-Invoice fields (no irn, srctyp, einvstatus, irngendate). Only geteinvdata or individual invoice detail (invoice?ctin=&inum=) include these fields."
+      },
+      "geteinvexcel": {
+        "url": "https://return.gst.gov.in/einvoice/auth/api/geteinvexcel?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "E-Invoice data as Excel file download. Returns binary Excel file. HTTP 200."
+      },
+      "geteinvdetl": {
+        "url": "https://return.gst.gov.in/einvoice/auth/api/geteinvdetl?file_type=EX&flag=0&rtn_prd={MMYYYY}&rtn_typ=GSTEINV",
+        "method": "GET",
+        "notes": "E-Invoice download history. Returns previously generated files for download. If no files generated: {status:0, error: {errorCode:'RETWEB_00', message:'No files available for download'}}. Used by 'E-INVOICE DOWNLOAD HISTORY' button."
+      },
+      "autoPopHsn": {
+        "url": "https://return.gst.gov.in/einvoice/auth/api/einv/autoPopHsn?rtn_prd={MMYYYY}&gstin={GSTIN}&sec=B2B",
+        "method": "POST",
+        "notes": "Import/auto-populate HSN summary from e-Invoice data into GSTR-1 Table 12. WRITE ACTION — overrides existing HSN data. UI shows confirmation dialog before calling. Only works on non-filed returns (button disabled when return is filed). After success, page refreshes HSN data via invoice?sec_name=HSN. Also triggers getReturnStatus check.",
+        "params": {
+          "rtn_prd": "Period in MMYYYY format",
+          "gstin": "GSTIN of the taxpayer",
+          "sec": "Section — B2B verified. B2C may also be supported."
+        },
+        "ui_flow": "Click 'Import HSN Data from e-Invoices' → Warning dialog ('This action will completely override...') → Click 'Override' → POST autoPopHsn → GET invoice?sec_name=HSN → GET getReturnStatus",
+        "verified_with": "Nine Packaging (07AAGCN6684E1Z7) Apr 2026 — imported 23 B2B HSN records from e-Invoices"
+      },
+      "getHsnExcel": {
+        "url": "https://return.gst.gov.in/einvoice/auth/api/einv/getHsnExcel?gstin={GSTIN}&rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "Download HSN summary from e-Invoices as Excel file. Returns binary Excel. HTTP 200. Works on both filed and non-filed returns. Triggered by 'DOWNLOAD HSN SUMMARY FROM E-INVOICES' button on HSN page.",
+        "params": {
+          "gstin": "GSTIN of the taxpayer",
+          "rtn_prd": "Period in MMYYYY format"
+        }
+      }
+    },
+    "ewb_apis": {
+      "notes": "E-Way Bill (EWB) import APIs. Available from GSTR-1 B2B section ('IMPORT EWB DATA' button). Allows importing e-Way Bill data into B2B invoices. Uses return.gst.gov.in domain.",
+      "checkewbdetl": {
+        "url": "https://return.gst.gov.in/returns/auth/api/checkewbdetl?rtn_prd={MMYYYY}&section=B2B",
+        "method": "GET",
+        "notes": "Check if EWB data is available for import. Returns {ewbCount: N}. If ewbCount=0, shows 'no EWB invoices available to import' message.",
+        "response_structure": "{ewbCount: <number>}"
+      },
+      "ewbdetl": {
+        "url": "https://return.gst.gov.in/returns/auth/api/ewbdetl?rtn_prd={MMYYYY}&section=B2B",
+        "method": "GET",
+        "notes": "Get actual EWB data as structured JSON. ALWAYS INSTANT — returns all e-Way Bill invoices regardless of volume. Tested with 106 invoices across 30 recipients (Nine Packaging Feb 2026). NOTE: uses 'rcname' (not 'trdname') for recipient name.",
+        "response_structure": {
+          "top_level": "{b2b: [...], fp, gstin, version, hash}",
+          "b2b_recipient": "{ctin, rcname, inv: [...]}",
+          "invoice": "{inum, idt, val, pos, rchrg, inv_typ, itms: [...]}",
+          "itm_det": "{rt, txval, iamt, camt, samt, csamt}",
+          "sample": {
+            "ctin": "09AACFN5373M1ZS",
+            "rcname": "NEW DELHI EXPORT HOUSE",
+            "inv": {"inum": "NPPL/25-26/5744", "idt": "17-02-2026", "val": 24424, "pos": "09", "rchrg": "N", "inv_typ": "R", "itms": [{"num": 0, "itm_det": {"rt": 5, "txval": 23261, "iamt": 465.33, "camt": 0, "samt": 0, "csamt": 0}}]}
+          }
+        },
+        "verified_with": "Nine Packaging (07AAGCN6684E1Z7) — 106 invoices, 30 recipients for Feb 2026; 94 invoices for Mar 2026"
+      },
+      "ewbgenerate": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/download/ewbgenerate?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "Trigger async EWB file generation for offline download. Returns token. Same async pattern as GSTR-1/2A offline download.",
+        "response_structure": "{status:1, data: {status:1, msg:'Your request for generation has been accepted kindly wait for 20 min', token:'<hex>'}}"
+      },
+      "ewb_page": {
+        "url": "https://return.gst.gov.in/returns/auth/gstr/ewbofflinedownload",
+        "notes": "EWB offline download page. Navigated to from B2B section when ewbCount > 0. Uses Ewbctrl controller."
+      }
+    },
+    "hsn_page": {
+      "url": "https://return.gst.gov.in/returns/auth/gstr1/hsn/summary",
+      "tabs": ["B2B Supplies", "B2C Supplies"],
+      "buttons": {
+        "download_hsn_codes": "window.location.href='//tutorial.gst.gov.in/downloads/HSN_SAC.xlsx' — static HSN/SAC master list",
+        "download_hsn_einvoice": "Triggers getHsnExcel API — downloads Excel with HSN from e-Invoices",
+        "import_hsn_einvoice": "Triggers autoPopHsn POST — imports/overrides HSN data from e-Invoices into Table 12. DISABLED when return is filed."
+      },
+      "supporting_apis": {
+        "rates": "GET /returns/auth/api/rates — GST rate list dropdown",
+        "checkAatoGt5Cr": "GET /returns/auth/api/common/checkAatoGt5Cr?rtn_prd={MMYYYY} — checks if aggregate turnover > 5 Cr (affects HSN reporting requirements)",
+        "products": "GET /usrmstrweb/auth/usermaster/products — user's saved product master list",
+        "getReturnStatus": "GET /returns/auth/api/common/getReturnStatus?ref_id={REF_ID}&rtn_prd={MMYYYY}&rtn_typ=GSTR1 — check status after save/import action"
+      }
+    },
+    "recommended_fetch_strategy": [
+      "1. Call formdetails to get status, ARN, filing date",
+      "2. Call summary for complete 46-section totals (17KB instant)",
+      "3. Call totalsummarycount to see which sections have data",
+      "4. For sections with data, call invoice?inv=ALL&sec_name={SECTION} to get all invoices",
+      "5. For detailed line items, call invoice with ctin+inum params",
+      "6. HSN and DOC sections also use the invoice endpoint with sec_name=HSN/DOC",
+      "7. Alternative: Use offline download (generate_json → download_file) for a single JSON dump",
+      "8. Call geteinvdata for complete e-Invoice data (instant JSON with IRN, einvstatus, autodraft info)",
+      "9. Call checkewbdetl to check EWB availability, then ewbdetl for actual EWB data if available"
+    ],
+    "push_apis": {
+      "_comment": "=== PUSH (POST) APIs — Add/Edit/Delete invoices, Submit, File GSTR-1 ===",
+      "controller_js": "https://returnstatic.gst.gov.in/uiassets/js/returns/gstr1ctrl.js (100KB) + gstr1router.js (414KB, section controllers)",
+      "total_post_calls": 74,
+      "filing_flow": {
+        "step_1_add_invoices": "POST invoice/add — Add invoices per section (B2B, CDNR, EXP, etc.). Can add multiple times.",
+        "step_2_generate_summary": "POST /gstr1/summary/generate — Refresh summary totals after adding invoices.",
+        "step_3_submit": "POST /gstr1/submit — Submit GSTR-1. LOCKS the return.",
+        "step_4_file": "POST /returns2/auth/api/gstr/filereturn — Shared filing endpoint (handles EVC + DSC for ALL return types).",
+        "notes": "GSTR-1 uses the SAME shared filereturn endpoint as GSTR-3B. No separate GSTR-1 EVC generate/validate endpoints — filing is handled by the shared controller in main.js."
+      },
+      "invoice_add": {
+        "url": "auth/api/gstr1/invoice/add",
+        "method": "POST",
+        "body_template_b2b": {
+          "gstin": "{TAXPAYER_GSTIN}",
+          "fp": "{MMYYYY}",
+          "gt": 0,
+          "b2b": [{
+            "ctin": "{RECIPIENT_GSTIN}",
+            "inv": [{
+              "inum": "{INVOICE_NUMBER}",
+              "idt": "{DD-MM-YYYY}",
+              "val": 0,
+              "pos": "{STATE_CODE_2DIGIT}",
+              "rchrg": "N",
+              "inv_typ": "R",
+              "diff_percent": 0,
+              "itms": [{
+                "num": 1,
+                "itm_det": {
+                  "rt": 18,
+                  "txval": 0,
+                  "iamt": 0,
+                  "camt": 0,
+                  "samt": 0,
+                  "csamt": 0
+                }
+              }]
+            }]
+          }]
+        },
+        "section_body_variants": {
+          "B2B": "{gstin, fp, gt, b2b: [{ctin, inv: [{inum, idt, val, pos, rchrg, inv_typ, itms}]}]}",
+          "B2BA": "{gstin, fp, gt, b2ba: [{ctin, inv: [{oinum, oidt, inum, idt, val, pos, rchrg, inv_typ, itms}]}]}",
+          "CDNR": "{gstin, fp, gt, cdnr: [{ctin, nt: [{ntty, nt_num, nt_dt, val, pos, rchrg, inv_typ, itms}]}]}",
+          "CDNUR": "{gstin, fp, gt, cdnur: [{ntty, nt_num, nt_dt, val, pos, itms}]}",
+          "B2CL": "{fp, gt, b2cl: [{pos, inv: [{inum, idt, val, itms}]}]}",
+          "B2CS": "{fp, gt, b2cs: [{pos, sply_ty, rt, txval, iamt, camt, samt, csamt, typ}]}",
+          "EXP": "{gstin, fp, gt, exp: [{exp_typ, inv: [{inum, idt, val, sbpcode, sbnum, sbdt, itms}]}]}",
+          "AT": "{fp, gt, at: [{pos, sply_ty, itms: [{rt, ad_amt, iamt, camt, samt, csamt}]}]}",
+          "TXPD": "{fp, gt, txpd: [{pos, sply_ty, itms: [{rt, ad_amt, iamt, camt, samt, csamt}]}]}",
+          "HSN": "{fp, gt, hsn: [{hsn_sc, desc, uqc, qty, rt, txval, iamt, camt, samt, csamt}]}",
+          "DOC": "{fp, gt, doc_issue: [{doc_num, doc_typ, docs: [{num, from, to, totnum, cancel, net_issue}]}]}",
+          "NIL": "{fp, gt, nil: [{sply_ty, expt_amt, ngsup_amt, nil_amt}]}"
+        },
+        "field_legend": {
+          "fp": "Filing period MMYYYY",
+          "gt": "Gross turnover",
+          "ctin": "Counter-party GSTIN (recipient for B2B, supplier for CDNR)",
+          "inum": "Invoice number",
+          "idt": "Invoice date DD-MM-YYYY",
+          "val": "Total invoice value (inclusive of tax)",
+          "pos": "Place of supply (2-digit state code)",
+          "rchrg": "Reverse charge Y/N",
+          "inv_typ": "R=Regular, DE=Deemed Export, SEWP=SEZ with payment, SEWOP=SEZ without payment",
+          "diff_percent": "Differential percentage (0.65 for 65%)",
+          "itms[].num": "Item serial number (1-based)",
+          "itm_det.rt": "Tax rate (0, 0.25, 3, 5, 12, 18, 28)",
+          "itm_det.txval": "Taxable value",
+          "oinum/oidt": "Original invoice number/date (for amendments)",
+          "ntty": "Note type: C=Credit, D=Debit",
+          "sbpcode/sbnum/sbdt": "Shipping bill port code/number/date (for exports)"
+        },
+        "notes": "Add invoices to GSTR-1. Body structure varies by section — top-level array key matches section name. B2B/CDNR group by counter-party GSTIN. B2CS/AT/TXPD are consolidated (no individual invoices). All amounts are in paisa-rounded decimals. 74 POST calls total in the controller for all section variants."
+      },
+      "invoice_edit": {
+        "url": "auth/api/gstr1/invoice/edit",
+        "method": "POST",
+        "body": "Same structure as invoice/add — full invoice data with updated fields",
+        "notes": "Edit existing invoices. Same body format as add."
+      },
+      "invoice_delete": {
+        "url": "auth/api/gstr1/invoice/delete",
+        "method": "POST",
+        "notes": "Delete invoices. Takes invoice identifiers."
+      },
+      "invoice_accept": {
+        "url": "auth/api/gstr1/invoice/accept",
+        "method": "POST",
+        "notes": "Accept e-Invoice auto-drafted invoices into GSTR-1."
+      },
+      "invoice_reject": {
+        "url": "auth/api/gstr1/invoice/reject",
+        "method": "POST",
+        "notes": "Reject e-Invoice auto-drafted invoices."
+      },
+      "save_gross_turnover": {
+        "url": "/returns/auth/api/gstr1/save",
+        "method": "POST",
+        "notes": "Save gross turnover value. Called from summary page. Response: 'Gross Turnover saved successfully'."
+      },
+      "submit": {
+        "url": "/returns/auth/api/gstr1/submit",
+        "method": "POST",
+        "body": {"fp": "{MMYYYY}", "gstin": "{GSTIN}"},
+        "body_alt": {"fp": "{MMYYYY}", "gstin": "{GSTIN}", "flag": "Y"},
+        "notes": "Submit GSTR-1. LOCKS the return. flag:'Y' variant may be used for IFF. Uses angular.toJson(gstr1sum)."
+      },
+      "reset": {
+        "url": "/returns/auth/api/gstr1/reset",
+        "method": "POST",
+        "body": {"fp": "{MMYYYY}", "gstin": "{GSTIN}"},
+        "notes": "Reset GSTR-1 data. DESTRUCTIVE — clears all manually added invoices."
+      },
+      "file_return": {
+        "url": "/returns2/auth/api/gstr/filereturn",
+        "method": "POST",
+        "notes": "SHARED filing endpoint for ALL return types (GSTR-1, GSTR-3B, GSTR-1A, etc.). Called via commonfile() in main.js. Response contains uuid in data.map.uuid. NOTE: uses returns2 subdomain, not returns.",
+        "important": "The EVC generate/validate for GSTR-1 uses the same shared flow as GSTR-3B. The params passed to this endpoint include the return type and EVC/DSC data."
+      },
+      "upload_json": {
+        "url": "auth/api/gstr1/upload",
+        "method": "POST",
+        "notes": "Upload JSON file for bulk invoice import. Called from offline upload page via $scope.uploadfil(). The JSON format matches the offline download format. Also supports: auth/api/gstr1e/upload (for GSTR-1E).",
+        "upload_error_apis": {
+          "error_generate": "/returns/auth/api/offline/upload/error/generate",
+          "error_report": "/returns/auth/api/offline/upload/error/report/url?token={TOKEN}",
+          "upload_summary": "/returns/auth/api/offline/upload/summary?rtn_prd={MMYYYY}&rtn_typ=GSTR1"
+        }
+      },
+      "summary_generate": {
+        "url": "/returns/auth/api/gstr1/summary/generate",
+        "method": "POST",
+        "notes": "Trigger summary generation/refresh after adding invoices."
+      },
+      "move_data": {
+        "url": "/returns/auth/api/gstr1/movedata",
+        "method": "POST",
+        "notes": "Move/migrate data between periods or sections."
+      },
+      "ewb_upload": {
+        "url": "/returns/auth/api/gstr1/ewbupload",
+        "method": "POST",
+        "notes": "Upload e-Way Bill data into GSTR-1 B2B invoices."
+      },
+      "pending_invoices": {
+        "url": "auth/api/gstr1/invoice/pending",
+        "method": "POST",
+        "notes": "Get pending (not yet processed) invoices."
+      },
+      "pending_delete": {
+        "url": "auth/api/gstr1/pending/invoice/delete",
+        "method": "POST",
+        "notes": "Delete pending invoices."
+      }
+    },
+    "gstr1a_push_apis": {
+      "_comment": "=== GSTR-1A Amendment APIs ===",
+      "save_modify": {
+        "url": "/returns/auth/api/gstr1a/save/modify",
+        "method": "POST",
+        "notes": "Save GSTR-1A amendment modifications."
+      },
+      "save_action": {
+        "url": "/returns/auth/api/gstr1a/save/action",
+        "method": "POST",
+        "notes": "Save GSTR-1A action (accept/reject amendments)."
+      },
+      "submit": {
+        "url": "/returns/auth/api/gstr1a/submit",
+        "method": "POST",
+        "notes": "Submit GSTR-1A."
+      },
+      "upload": {
+        "url": "auth/api/gstr1a/upload",
+        "method": "POST",
+        "notes": "Upload GSTR-1A JSON file."
+      },
+      "evc_generate": {
+        "url": "/returns/auth/api/submit/gstr1a/evc/generate",
+        "method": "POST",
+        "notes": "Generate EVC OTP for GSTR-1A filing."
+      },
+      "evc_validate": {
+        "url": "/returns/auth/api/submit/gstr1a/evc/validate",
+        "method": "POST",
+        "notes": "Validate EVC OTP to complete GSTR-1A filing."
+      },
+      "sign_dsc": {
+        "url": "/returns/auth/api/submit/gstr1a/sign",
+        "method": "POST",
+        "notes": "File GSTR-1A with DSC."
+      },
+      "datahash": {
+        "url": "/returns/api/gstr1a/datahash",
+        "method": "POST",
+        "notes": "Get data hash for GSTR-1A DSC signing."
+      }
+    }
+  },
+  "gstr2a": {
+    "type": "offline_download",
+    "page_url": "https://return.gst.gov.in/returns/auth/gstr/offlinedownload",
+    "download_buttons": ["JSON", "Excel"],
+    "ng_click": "offlinepath(x.return_ty)",
+    "apis": {
+      "validate": {
+        "url": "https://return.gst.gov.in/returns/auth/api/gstr/save/valid?rtn_prd={MMYYYY}&rtn_typ=GSTR2A",
+        "method": "GET"
+      },
+      "upload_summary": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/upload/summary?rtn_prd={MMYYYY}&rtn_typ=GSTR2A",
+        "method": "GET"
+      },
+      "generate_json": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/download/generate?flag=0&rtn_prd={MMYYYY}&rtn_typ=GSTR2A",
+        "method": "GET",
+        "notes": "Same async pattern as GSTR-1."
+      },
+      "download_file": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/download/url?rtn_prd={MMYYYY}&rtn_typ=GSTR2A&file_num=1",
+        "method": "GET",
+        "notes": "Download generated JSON. Same pattern as GSTR-1. file_num is a version number, not file splitting."
+      },
+      "generate_excel": {
+        "url": "https://return.gst.gov.in/returns/auth/api/offline/download/generate?flag=1&rtn_prd={MMYYYY}&rtn_typ=GSTR2A",
+        "method": "GET",
+        "notes": "GSTR-2A also supports Excel download (flag=1 likely for Excel, flag=0 for JSON)."
+      }
+    }
+  },
+  "gstr2b": {
+    "type": "direct_api",
+    "subdomain": "gstr2b.gst.gov.in",
+    "pages": {
+      "view": "https://gstr2b.gst.gov.in/gstr2b/auth/gstr2b/summary",
+      "download": "https://gstr2b.gst.gov.in/gstr2b/auth/gstr2bdwld"
+    },
+    "notes": "GSTR-2B has its own subdomain. getjson and getdata return IDENTICAL data. View page uses getdata, Download page uses getjson. Excel download on view page is CLIENT-SIDE (no API). All table views (B2B/CDNR/ISD/IMPG/ECO etc.) render from single getdata response. MUST navigate through portal links — direct URL causes Access Denied.",
+    "apis": {
+      "get_json": {
+        "url": "https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd={MMYYYY}",
+        "method": "GET",
+        "response_size": "~106KB (Nine Packaging, 345 invoices) / ~149KB (L.R. Sharma)",
+        "notes": "Full GSTR-2B data instantly. No async generation. IDENTICAL to getdata. rtnprd param (no underscore). Used by Download page."
+      },
+      "get_data": {
+        "url": "https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getdata?rtnprd={MMYYYY}",
+        "method": "GET",
+        "response_size": "~106KB (Nine Packaging) — identical to getjson",
+        "notes": "IDENTICAL to getjson — confirmed byte-for-byte on Nine Packaging Feb 2026. Used by View/Summary page. Either API can be used."
+      },
+      "get_user_dtls": {
+        "url": "https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getuserdtls?rtnprd={MMYYYY}&fy={YYYY-YY}",
+        "method": "GET",
+        "notes": "Returns metadata: gstin, fy, rtnprd, lgnm (legal name), trdnm (trade name). Generation date also returned."
+      }
+    },
+    "response_structure": {
+      "top_level": "{data, chksum}",
+      "data_keys": ["itcsumm", "rtnprd", "docdata", "gendt", "gstin", "version", "cpsumm"],
+      "docdata": {
+        "description": "Invoice-level document data. Only populated types appear.",
+        "possible_keys": ["b2b", "b2ba", "cdnr", "cdnra", "isd", "isda", "impg", "impgsez", "eco", "ecoa"],
+        "b2b_structure": "{ctin, trdnm, supfildt, supprd, inv: [{inum, dt, val, txval, igst, cgst, sgst, cess, rev, itcavl, typ, imsStatus, pos, rsn}]}",
+        "b2b_sample": {"ctin": "06BAIPK9014M1ZF", "trdnm": "M/S N.S GRAPHIC MACHINE SERVICE", "inv_count": 1, "inv_sample": {"val": 21240, "sgst": 0, "rev": "N", "itcavl": "Y", "txval": 18000, "typ": "R", "cgst": 0, "inum": "357-25/26", "cess": 0, "igst": 3240, "dt": "02-02-2026", "imsStatus": "A", "pos": "07"}},
+        "cdnr_structure": "{ctin, trdnm, supfildt, supprd, nt: [{ntnum, dt, val, txval, igst, cgst, sgst, cess, typ(C/D), rev, itcavl, imsStatus, pos, rsn, irn, irngendate, srctyp, suptyp, itcRedReq}]}",
+        "cdnr_note": "CDNR notes can include e-Invoice fields (irn, irngendate, srctyp='E-Invoice') and IMS fields (imsStatus, itcRedReq, suptyp)",
+        "b2ba_structure": "{ctin, trdnm, supfildt, supprd, inv: [{...same as b2b + oinum (original invoice number for amendment)}]}",
+        "verified_counts_nine_packaging_feb2026": {"b2b_suppliers": 99, "b2b_total_invoices": 345, "b2ba_suppliers": 1, "cdnr_suppliers": 4}
+      },
+      "cpsumm": {
+        "description": "Counterparty-level aggregated summary (same section keys as docdata but aggregated per supplier).",
+        "b2b_structure": "{ctin, trdnm, txval, igst, cgst, sgst, cess, ttldocs, supfildt, supprd}",
+        "cdnr_structure": "{ctin, trdnm, txval, igst, cgst, sgst, cess, ttldocs, supfildt, supprd, nttyp}"
+      },
+      "itcsumm": {
+        "description": "ITC summary broken by supply type.",
+        "structure": "{itcavl: {nonrevsup: {b2b, b2ba, sgst, cgst, igst, cess}, revsup: {b2b, txval, sgst, cgst, igst, cess}, othersup: {cdnr, sgst, cgst, igst, cess}}}",
+        "nonrevsup_b2b_sample": {"sgst": 297513.92, "txval": 5230015.52, "cgst": 297513.92, "cess": 0, "igst": 145220.38}
+      }
+    },
+    "table_types": {
+      "itc_available": ["B2B", "B2BA", "CDNR", "CDNRA", "ISD", "ISDA", "IMPG", "IMPGSEZ", "ECO", "ECOA"],
+      "itc_reversal": ["B2B", "B2BA", "DNR", "DNRA"],
+      "itc_rejected": ["B2B", "B2BA", "CDNR"]
+    }
+  },
+  "gstr3b": {
+    "type": "structured_json",
+    "page_url": "https://return.gst.gov.in/returns/auth/gstr3b",
+    "controller_js": "https://returnstatic.gst.gov.in/uiassets/js/returns/gstr3bctrl.js",
+    "controller_size": "5.6MB (minified, contains ALL 10 sub-controllers inline)",
+    "total_ajax_calls": {"post": 22, "get": 49},
+    "notes": "GSTR-3B has FULL structured JSON via the summary API — no need for PDF scraping. Complete PUSH (save/submit/file) and PULL (fetch) APIs documented. 32 unique API endpoints total. Filing supports EVC (OTP-based, no DSC needed) or DSC (digital signature). EVC flow: save → submit → offsetliab → evc/generate → evc/validate.",
+    "routes": {
+      "/auth/gstr3b": "gstr3bctrl — Main dashboard",
+      "/auth/gstr3b/iosup": "iosuppctrl — Outward/inward supplies (Table 3.1)",
+      "/auth/gstr3b/interstatesupplies": "interstatesupctrl — Inter-state supplies (Table 3.2)",
+      "/auth/gstr3b/supplyCGSTAct": "ecosuppliesctrl — E-commerce supplies",
+      "/auth/gstr3b/elgITC": "elgitcctrl — Eligible ITC (Table 4)",
+      "/auth/gstr3b/inwardSup": "inwardsupctrl — Inward supplies (Table 5)",
+      "/auth/gstr3b/interestLateFee": "interestlatefeectrl — Interest & late fee (Table 5.1)",
+      "/auth/gstr3b/payment": "paymentctrl — Payment/offset",
+      "/auth/gstr3b/tdsTcsCredit": "tdstcsctrl — TDS/TCS credit",
+      "/auth/gstr3b/filing": "fileGstr3bCtrl — Filing (EVC/DSC)"
+    },
+    "recommended_apis": {
+      "pull": ["summary", "taxpayble", "form_details", "getr1r3bliab"],
+      "push": ["save", "submit", "offsetliab", "evc_generate", "evc_validate"]
+    },
+    "filing_flow": {
+      "step_1_save": "POST /save — Save GSTR-3B summary data (all tables). Can save multiple times before submit.",
+      "step_2_saveitc": "POST /saveitc — Save ITC/tax payment offset allocation. Optional separate step.",
+      "step_3_submit": "POST /submit — Submit GSTR-3B. After this, data is LOCKED and cannot be edited.",
+      "step_4_offsetliab": "POST /offsetliab — Offset tax liability using ITC and cash balance.",
+      "step_5a_evc_generate": "POST /evc/generate — Generate EVC OTP (sent to registered mobile/email). For filing WITHOUT DSC.",
+      "step_5b_evc_validate": "POST /evc/validate — Validate the 6-char OTP to complete filing. OTP format: ^[0-9A-Z]{6}$",
+      "step_5_alt_dsc": "For DSC filing: POST /datahash → sign externally → POST /sign with digital signature.",
+      "notes": "EVC = Electronic Verification Code. This is the OTP-free path for filing (the OTP here is the EVC code, NOT the login OTP). DSC = Digital Signature Certificate (requires hardware token)."
+    },
+    "apis": {
+      "_pull_apis_comment": "=== PULL (GET) APIs — Fetch GSTR-3B data ===",
+      "summary": {
+        "url": "/returns/auth/api/gstr3b/summary?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "response_size": "~3.5KB",
+        "notes": "THE KEY API — returns complete GSTR-3B structured JSON. Contains: sup_details (osup_det/osup_zero/osup_nil_exmp/isup_rev/osup_nongst with txval/iamt/camt/samt/csamt), inter_sup (unreg/comp/uin_details), itc_elg (itc_avl by type [IMPG/IMPS/ISRC/ISD/OTH], itc_rev, itc_net, itc_inelg), inward_sup, intr_ltfee, tt_val (tt_pay/tt_csh_pd/tt_itc_pd), qn (questionnaire), liab_breakup, eco_dtls.",
+        "response_structure": {
+          "sup_details": {
+            "osup_det": "Table 3.1(a) — Outward taxable supplies (txval, iamt, camt, samt, csamt)",
+            "osup_zero": "Table 3.1(b) — Zero rated supplies",
+            "osup_nil_exmp": "Table 3.1(c) — Nil rated/exempted supplies",
+            "isup_rev": "Table 3.1(d) — Inward supplies liable to reverse charge",
+            "osup_nongst": "Table 3.1(e) — Non-GST outward supplies"
+          },
+          "inter_sup": "Table 3.2 — Inter-state supplies",
+          "itc_elg": {
+            "itc_avl": "Table 4(A) — ITC available (types: IMPG=import goods, IMPS=import services, ISRC=reverse charge, ISD=input service distributor, OTH=all other)",
+            "itc_rev": "Table 4(B) — ITC reversed",
+            "itc_net": "Table 4(C) — Net ITC",
+            "itc_inelg": "Table 4(D) — Ineligible ITC"
+          },
+          "inward_sup": "Table 5 — Exempt/nil/non-GST inward supplies",
+          "intr_ltfee": "Table 5.1 — Interest and late fee",
+          "tt_val": "Table 6 — Payment summary (tt_csh_pd=cash paid, tt_itc_pd=ITC utilized)",
+          "liab_breakup": "Liability breakup by period",
+          "eco_dtls": "E-commerce operator details"
+        }
+      },
+      "form_details": {
+        "url": "/returns/auth/api/formdetails?rtn_prd={MMYYYY}&rtn_typ=GSTR3B",
+        "method": "GET",
+        "notes": "Metadata: gstin, fy, period, status (FIL=filed), ARN, filing date, due date, legal name."
+      },
+      "taxpayble": {
+        "url": "/returns/auth/api/gstr3b/taxpayble?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "response_size": "~7.3KB",
+        "notes": "Detailed tax payment data. Only available AFTER save. Returns balances + payment breakdown. Feeds the offset_liability POST body.",
+        "response_structure": {
+          "bal": {
+            "cash_bal": {"igst": "{tx,intr,pen,fee,oth,tot}", "cgst": "{...}", "sgst": "{...}", "cess": "{...}", "igst_tot_bal": 0, "cgst_tot_bal": 0, "sgst_tot_bal": 0, "cess_tot_bal": 0},
+            "itc_bal": {"igst_bal": 0, "cgst_bal": 0, "sgst_bal": 0, "cess_bal": 0}
+          },
+          "returnsDbCdredList": {
+            "tax_pay": [{"igst": {"tx": 0, "intr": 0, "pen": 0, "fee": 0, "oth": 0, "tot": 0}, "sgst": "{...}", "cgst": "{...}", "cess": "{...}", "liab_id": "{USE_IN_OFFSET}", "trancd": "{USE_IN_OFFSET}", "trandate": "DD-MM-YYYY"}],
+            "tax_paid": {
+              "pd_by_cash": [{"igst": "{tx,intr,pen,fee,oth,tot}", "liab_id": 0, "debit_id": "", "trancd": 0}],
+              "pd_by_itc": [{"igst_igst_amt": 0, "igst_cgst_amt": 0, "igst_sgst_amt": 0, "sgst_sgst_amt": 0, "sgst_igst_amt": 0, "cgst_cgst_amt": 0, "cgst_igst_amt": 0, "cess_cess_amt": 0, "liab_id": 0, "debit_id": "", "trancd": 0}],
+              "pd_by_nls": []
+            },
+            "net_tax_pay": "[{same structure as tax_pay}]"
+          }
+        }
+      },
+      "getr1r3bliab": {
+        "url": "/returns/auth/api/gstr3b/getr1r3bliab?retPeriod={MMYYYY}",
+        "method": "GET",
+        "response_size": "~18KB",
+        "notes": "System-generated auto-populated values — compares GSTR-1/2B to compute GSTR-3B. Contains statustbl (r1frmst/r2bfrmst/r1sumst/r2bsumst), r1fildt, r2bgendt, r3bgendt, and full liabitc breakdown. Largest response. NOTE: retPeriod param (no underscore)."
+      },
+      "system_interest": {
+        "url": "/returns/auth/api/gstr3b/sysint?gstin={GSTIN}&rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "System interest calculation. May return error RT-3BB0014 if previous period not filed or interest not applicable."
+      },
+      "get_details": {
+        "url": "/returns/auth/api/gstr3b/getDetails?gstin={GSTIN}&retPeriod={MMYYYY}",
+        "method": "GET",
+        "notes": "Config/threshold data: autoCalcFlag, upDownValues (variance thresholds per section). NOTE: retPeriod param (no underscore)."
+      },
+      "negative_liab": {
+        "url": "/returns/auth/api/gstr3b/negativeLiabDetails?rtn_prd={MMYYYY}&indicator=next",
+        "method": "GET",
+        "notes": "Negative liability details. Often empty (flag:false, negativeLiabResp:[])."
+      },
+      "is_gstr1_filed": {
+        "url": "/returns/auth/api/gstr3b/isgstr1fil?gstin={GSTIN}&rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "Check if GSTR-1 is filed for the period."
+      },
+      "validate": {
+        "url": "/returns/auth/api/gstr3b/validate?gstin={GSTIN}",
+        "method": "GET",
+        "notes": "Validate GSTR-3B data before submit. Called to check for errors in the filled data."
+      },
+      "get_txn_status": {
+        "url": "/returns/auth/api/gstr3b/getTxnStatus?gstin={GSTIN}",
+        "method": "GET",
+        "notes": "Get transaction/filing status. Used to poll for async operation completion (submit, offset, filing)."
+      },
+      "check_late_fee_liab": {
+        "url": "/returns/auth/api/gstr3b/checkLtFeeLiab?ret_period={MMYYYY}",
+        "method": "GET",
+        "notes": "Check late fee liability for the period."
+      },
+      "check_locking": {
+        "url": "/returns/auth/api/gstr3b/checkLocking",
+        "method": "GET",
+        "notes": "Check if GSTR-3B is locked for editing (locked after submit). Called before save/edit operations."
+      },
+      "has_offset": {
+        "url": "/returns/auth/api/gstr3b/hasOffset?ret_period={MMYYYY}",
+        "method": "GET",
+        "notes": "Check if offset has already been done for this period."
+      },
+      "get_nil_flag": {
+        "url": "/returns/auth/api/gstr3b/getnilflag?gstin={GSTIN}",
+        "method": "GET",
+        "notes": "Check if nil filing flag is set for this GSTIN."
+      },
+      "get_late_fee_md": {
+        "url": "/returns/auth/api/gstr3b/getlatefeemd?ret_period={MMYYYY}",
+        "method": "GET",
+        "notes": "Get late fee metadata — configuration for late fee calculation."
+      },
+      "recompute_int_status": {
+        "url": "/returns/auth/api/gstr3b/recomputeintstatus?gstin={GSTIN}",
+        "method": "GET",
+        "notes": "Check status of interest recomputation."
+      },
+      "liab_breakup_status": {
+        "url": "/returns/auth/api/gstr3b/liabbreakupstatus?gstin={GSTIN}",
+        "method": "GET",
+        "notes": "Get liability breakup status for display on payment page."
+      },
+      "set_off_status_get": {
+        "url": "/returns/auth/api/gstr3b/setOffStatus?ret_period={MMYYYY}&getITC=Y",
+        "method": "GET",
+        "notes": "GET version — fetch current offset status and ITC availability. Called before offset."
+      },
+      "show_pdf": {
+        "url": "/returns/auth/api/gstr3b/showpdf?retPeriod={MMYYYY}",
+        "method": "GET",
+        "notes": "Returns success flag for PDF availability. NOTE: retPeriod param (no underscore)."
+      },
+      "generate_pdf": {
+        "url": "/returns/auth/api/gstr3b/getgenpdf?rtn_prd={MMYYYY}",
+        "method": "GET",
+        "notes": "Generate/download GSTR-3B PDF. Only needed if PDF format specifically required."
+      },
+      "rcm_available": {
+        "url": "/returns/auth/internalapi/getRcmAvl?action={ACTION}&rtnPrd={MMYYYY}",
+        "method": "GET",
+        "notes": "RCM available balance. Actions: 'clsbal' (closing balance, no rtnPrd), 'opnbal' (opening balance, with rtnPrd)."
+      },
+      "reclaim_available": {
+        "url": "/returns/auth/internalapi/getRclmAvl?action=opnbal&gstin={GSTIN}&rtnPrd={MMYYYY}",
+        "method": "GET",
+        "notes": "Reclaim available opening balance."
+      },
+
+      "_push_apis_comment": "=== PUSH (POST) APIs — Save, Submit, File GSTR-3B ===",
+      "save": {
+        "url": "/returns/auth/api/gstr3b/save",
+        "method": "POST",
+        "body_template": {
+          "gstin": "{GSTIN}",
+          "ret_period": "{MMYYYY}",
+          "sysint_updated": "Y",
+          "sup_details": {
+            "osup_det": {"txval": 0, "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "osup_zero": {"txval": 0, "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "osup_nil_exmp": {"txval": 0, "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "isup_rev": {"txval": 0, "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "osup_nongst": {"txval": 0, "iamt": 0, "camt": 0, "samt": 0, "csamt": 0}
+          },
+          "inter_sup": {
+            "unreg_details": [{"pos": "{STATE_CODE}", "txval": 0, "iamt": 0}],
+            "comp_details": [],
+            "uin_details": []
+          },
+          "itc_elg": {
+            "itc_avl": [
+              {"ty": "IMPG", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+              {"ty": "IMPS", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+              {"ty": "ISRC", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+              {"ty": "ISD", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+              {"ty": "OTH", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0}
+            ],
+            "itc_rev": [
+              {"ty": "RUL", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+              {"ty": "OTH", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0}
+            ],
+            "itc_net": {"iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "itc_inelg": [
+              {"ty": "RUL", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+              {"ty": "OTH", "iamt": 0, "camt": 0, "samt": 0, "csamt": 0}
+            ]
+          },
+          "intr_ltfee": {
+            "intr_details": {"iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "ltfee_details": {"iamt": 0, "camt": 0, "samt": 0, "csamt": 0}
+          },
+          "tt_val": {"tt_pay": 0, "tt_csh_pd": 0, "tt_itc_pd": 0},
+          "qn": {"q1": "N", "q2": "Y", "q3": "Y", "q4": "Y", "q5": "Y", "q6": "Y", "q7": "N"},
+          "liab_breakup": [{"ret_period": "{MMYYYY}", "liability": {"iamt": 0, "camt": 0, "samt": 0, "csamt": 0}}],
+          "eco_dtls": {
+            "eco_sup": {"txval": 0, "iamt": 0, "camt": 0, "samt": 0, "csamt": 0},
+            "eco_reg_sup": {"txval": 0}
+          }
+        },
+        "body_field_legend": {
+          "sup_details.osup_det": "Table 3.1(a) Outward taxable supplies (other than zero/nil/exempted)",
+          "sup_details.osup_zero": "Table 3.1(b) Zero rated supplies",
+          "sup_details.osup_nil_exmp": "Table 3.1(c) Nil rated, exempted supplies",
+          "sup_details.isup_rev": "Table 3.1(d) Inward supplies liable to reverse charge",
+          "sup_details.osup_nongst": "Table 3.1(e) Non-GST outward supplies",
+          "inter_sup.unreg_details": "Table 3.2 Inter-state to unregistered (pos=state code)",
+          "itc_avl_types": "IMPG=Import of Goods, IMPS=Import of Services, ISRC=Inward supplies (reverse charge), ISD=Input Service Distributor, OTH=All other ITC",
+          "itc_rev_types": "RUL=As per rules, OTH=Others",
+          "itc_inelg_types": "RUL=As per rules, OTH=Others",
+          "tax_fields": "txval=taxable value, iamt=IGST, camt=CGST, samt=SGST, csamt=Cess",
+          "qn_fields": "q1-q7=Questionnaire Y/N flags (e.g. q2=made supplies to unregistered, q3=made inter-state supplies)"
+        },
+        "notes": "Save GSTR-3B data. Can be called multiple times. Body is the FULL gstr3bSummary JSON — SAME structure as summary GET response. Verified from live Nine Packaging data (Mar 2026). For unfiled periods, itc_elg/qn/liab_breakup may be absent in GET but MUST be included in save POST."
+      },
+      "save_itc": {
+        "url": "/returns/auth/api/gstr3b/saveitc",
+        "method": "POST",
+        "body_template": {
+          "ret_period": "{MMYYYY}",
+          "igst_igst_amt": 0,
+          "igst_cgst_amt": 0,
+          "igst_sgst_amt": 0,
+          "cgst_igst_amt": 0,
+          "cgst_cgst_amt": 0,
+          "sgst_igst_amt": 0,
+          "sgst_sgst_amt": 0,
+          "cess_cess_amt": 0
+        },
+        "body_field_legend": {
+          "format": "{SOURCE}_{DESTINATION}_amt — amount of {SOURCE} tax paid using {DESTINATION} balance",
+          "igst_igst_amt": "IGST liability paid from IGST ITC",
+          "igst_cgst_amt": "IGST liability paid from CGST ITC (cross-utilization)",
+          "igst_sgst_amt": "IGST liability paid from SGST ITC (cross-utilization)",
+          "cgst_igst_amt": "CGST liability paid from IGST ITC (cross-utilization)",
+          "cgst_cgst_amt": "CGST liability paid from CGST ITC",
+          "sgst_igst_amt": "SGST liability paid from IGST ITC (cross-utilization)",
+          "sgst_sgst_amt": "SGST liability paid from SGST ITC",
+          "cess_cess_amt": "Cess paid from Cess ITC"
+        },
+        "notes": "Save ITC cross-utilization matrix. This is the payment page data showing how ITC from each head is used to pay liability of each head. Called from paymentctrl. Verified from live pd_by_itc data."
+      },
+      "save_breakup": {
+        "url": "/returns/auth/api/gstr3b/savebkp",
+        "method": "POST",
+        "body": {"ret_period": "{MMYYYY}", "liability": {"igst": 0, "cgst": 0, "sgst": 0, "cess": 0}},
+        "notes": "Save liability breakup details. Called with gstin, ret_period, and liability breakdown amounts."
+      },
+      "reset": {
+        "url": "/returns/auth/api/gstr3b/reset",
+        "method": "POST",
+        "body": {"ret_period": "{MMYYYY}"},
+        "notes": "Reset GSTR-3B data to auto-populated values. DESTRUCTIVE — clears all manual edits."
+      },
+      "submit": {
+        "url": "/returns/auth/api/gstr3b/submit",
+        "method": "POST",
+        "body": {"gstin": "{GSTIN}", "ret_period": "{MMYYYY}"},
+        "notes": "Submit GSTR-3B. LOCKS the return — no further edits possible. Must save before submit. Deletes transId from summary before submitting."
+      },
+      "offset_liability": {
+        "url": "/returns/auth/api/gstr3b/offsetliab?rtn_prd={MMYYYY}",
+        "method": "POST",
+        "body_template": {
+          "utilCsshReqVO": {
+            "gstin": "{GSTIN}",
+            "ret_period": "{MMYYYY}",
+            "ret_type": "GSTR3B",
+            "op_liab": "{}",
+            "utilITCReqVO": "{}",
+            "liab_id": "{FROM_TAX_PAY}",
+            "tran_cd": "{FROM_TAX_PAY}",
+            "igst_igst_amt": 0,
+            "igst_cgst_amt": 0,
+            "igst_sgst_amt": 0,
+            "sgst_sgst_amt": 0,
+            "sgst_igst_amt": 0,
+            "cgst_cgst_amt": 0,
+            "cgst_igst_amt": 0,
+            "cess_cess_amt": 0
+          },
+          "utilNlsAdjReqVO": "{OPTIONAL — negative liability adjustment, omit if zero}",
+          "utilNlsNetReqVO": "{OPTIONAL — negative liability net, omit if zero}"
+        },
+        "body_field_legend": {
+          "utilCsshReqVO": "Main offset request — ITC utilization + cash payment combined",
+          "liab_id": "Liability ID from taxpayble.returnsDbCdredList.tax_pay[].liab_id",
+          "tran_cd": "Transaction code from tax_pay[]. 30002=regular liability, 30003=late fee liability",
+          "cross_util_fields": "Same {SOURCE}_{DESTINATION}_amt pattern as saveitc — how ITC is utilized across tax heads",
+          "utilNlsAdjReqVO": "Only include if negative liability adjustment needed (nlsadjrtot/nlsadjnrtot > 0)",
+          "utilNlsNetReqVO": "Only include if negative liability net needed (nlsnetrtot/nlsnetnrtot > 0)"
+        },
+        "notes": "Offset tax liability against ITC and cash balance. Called after submit. liab_id and tran_cd come from the taxpayble response. Verified from live Feb 2026 data: liab_id=344022363, tran_cd=30002."
+      },
+      "set_off_status_post": {
+        "url": "/returns/auth/api/gstr3b/setOffStatus?rtn_prd={MMYYYY}",
+        "method": "POST",
+        "notes": "POST version — update/set offset status after offset is done."
+      },
+      "compute_interest": {
+        "url": "/returns/auth/api/gstr3b/cmpint",
+        "method": "POST",
+        "body": {"gstin": "{GSTIN}", "ret_period": "{MMYYYY}"},
+        "notes": "Compute/recompute interest for the period. Called from interestlatefeectrl."
+      },
+      "data_hash": {
+        "url": "/returns/auth/api/gstr3b/datahash",
+        "method": "POST",
+        "notes": "Get data hash for DSC signing. Called before sign API. Part of DSC filing flow (alternative to EVC)."
+      },
+      "sign_dsc": {
+        "url": "/returns/auth/api/gstr3b/sign",
+        "method": "POST",
+        "body": {"ret_period": "{MMYYYY}", "pan": "{PAN}", "sign": "{DIGITAL_SIGNATURE}", "data": "{GSTR3B_DATA}"},
+        "notes": "File GSTR-3B with Digital Signature Certificate (DSC). Sign field contains the digital signature response. Alternative to EVC flow."
+      },
+      "evc_generate": {
+        "url": "/returns/auth/api/submit/gstr3b/evc/generate",
+        "method": "POST",
+        "body": {"pan": "{PAN}", "emailId": "{EMAIL}", "mobNo": "{MOBILE}"},
+        "notes": "Generate EVC (Electronic Verification Code) OTP. Sends 6-character code to registered mobile/email. Body is DscAuth object with pan, emailId, mobNo. THIS is the filing OTP — different from login OTP."
+      },
+      "evc_validate": {
+        "url": "/returns/auth/api/submit/gstr3b/evc/validate",
+        "method": "POST",
+        "body": {"ret_period": "{MMYYYY}", "otp": "{6_CHAR_CODE}"},
+        "notes": "Validate EVC OTP to complete filing. OTP must match pattern ^[0-9A-Z]{6}$. On success, GSTR-3B is FILED and ARN is generated."
+      },
+      "evc_resend": {
+        "url": "/returns/auth/api/submit/evc/resend",
+        "method": "POST",
+        "body": {"fp": "{MMYYYY}", "otpValidityTime": "{SECONDS}", "rtn_typ": "GSTR3B"},
+        "notes": "Resend EVC OTP. Note: uses 'fp' param (not ret_period). Starts 30-second countdown timer. Generic endpoint shared across return types."
+      }
+    },
+    "param_notes": {
+      "rtn_prd_vs_retPeriod": "Some APIs use 'rtn_prd' (with underscore), others use 'retPeriod' (camelCase). getr1r3bliab, getDetails, showpdf use retPeriod.",
+      "ret_period_vs_rtn_prd": "POST body params use 'ret_period' (with underscore). Query params vary — setOffStatus GET uses ret_period, POST uses rtn_prd.",
+      "base_url": "All API paths are relative to https://return.gst.gov.in"
+    }
+  },
+  "login_flow": {
+    "trusted_device_states": [
+      {
+        "state": "fully_trusted",
+        "description": "No captcha, no OTP. Direct login with username + password only.",
+        "captcha": false,
+        "otp": false
+      },
+      {
+        "state": "semi_trusted",
+        "description": "Captcha required but OTP skipped. Username + password + captcha.",
+        "captcha": true,
+        "otp": false
+      },
+      {
+        "state": "new_device",
+        "description": "Both captcha and OTP required.",
+        "captcha": true,
+        "otp": true
+      }
+    ],
+    "session_notes": [
+      "Session cookies are httpOnly — cannot read via document.cookie, but Playwright context.cookies() works.",
+      "Cross-subdomain navigation MUST go through portal's own links (Services > Returns). Direct URL navigation breaks session.",
+      "Session timeout is relatively short. Use keepalive API periodically.",
+      "Captcha only appears AFTER typing in the username field, not before."
+    ]
+  },
+  "architecture_notes": {
+    "recommended_flow": [
+      "1. User enters GSTIN/username/password in fillgst.com UI",
+      "2. Playwright (headless) navigates to login page",
+      "3. Fill username → wait for captcha to appear",
+      "4. Extract captcha image → relay to fillgst.com UI",
+      "5. User solves captcha in fillgst.com UI",
+      "6. Playwright submits captcha + clicks Login",
+      "7. If trusted device → direct dashboard (no OTP needed!)",
+      "8. Capture session cookies via context.cookies()",
+      "9. Close browser — all further data fetching via pure HTTP with cookies",
+      "10. Call keepalive API periodically to maintain session",
+      "11. Fetch GSTR-2B via direct API (instant 149KB JSON — gstr2b subdomain)",
+      "12a. Fetch GSTR-1 summary via instant API (17KB — return subdomain)",
+      "12b. Fetch GSTR-1 invoices per section via instant API (return subdomain)",
+      "12c. OR Fetch GSTR-1 full JSON via offline generate → download pattern",
+      "12d. Fetch GSTR-2A via generate → poll → download pattern (return subdomain)",
+      "12e. Fetch e-Invoice data via geteinvdata (instant JSON with IRN, einvstatus, autodraft info)",
+      "12f. Optionally fetch e-Invoice Excel via geteinvexcel or HSN Excel via getHsnExcel",
+      "12g. Check EWB availability via checkewbdetl, fetch ewbdetl if ewbCount > 0",
+      "13. Fetch GSTR-3B via summary API (instant structured JSON — NO PDF needed!)",
+      "14. Fetch GSTR-3B tax payment details via taxpayble API",
+      "15. Fetch GSTR-3B system-generated values via getr1r3bliab API",
+      "--- GSTR-3B FILING (PUSH) FLOW ---",
+      "16. POST save — Save GSTR-3B data (body: full gstr3bSummary object)",
+      "17. POST saveitc — Save ITC/tax payment offset allocation",
+      "18. POST submit — Submit GSTR-3B (locks return, body: {gstin, ret_period})",
+      "19. POST offsetliab — Offset tax liability against ITC and cash",
+      "20a. POST evc/generate — Generate EVC OTP (body: {pan, emailId, mobNo})",
+      "20b. POST evc/validate — Validate 6-char OTP to complete filing (body: {ret_period, otp})",
+      "20alt. For DSC: POST datahash → sign externally → POST sign with {ret_period, pan, sign, data}"
+    ],
+    "data_fetch_summary": {
+      "instant_apis": {
+        "GSTR-1_summary": "return.gst.gov.in/returns/auth/api/gstr1/summary?rtn_prd={MMYYYY} (17KB, 46 sections)",
+        "GSTR-1_invoices": "return.gst.gov.in/returns/auth/api/gstr1/invoice?inv=ALL&rtn_prd={MMYYYY}&sec_name={SECTION}&uploaded_by=SU",
+        "GSTR-1_counts": "return.gst.gov.in/returns/auth/api/gstr1/totalsummarycount?rtn_prd={MMYYYY}",
+        "GSTR-1_einvoice_data": "return.gst.gov.in/einvoice/auth/api/geteinvdata?rtn_prd={MMYYYY} (full e-Invoice JSON with IRN, status)",
+        "GSTR-1_einvoice_excel": "return.gst.gov.in/einvoice/auth/api/geteinvexcel?rtn_prd={MMYYYY} (binary Excel)",
+        "GSTR-1_hsn_excel": "return.gst.gov.in/einvoice/auth/api/einv/getHsnExcel?rtn_prd={MMYYYY} (HSN Excel from e-Invoices)",
+        "GSTR-1_ewb_check": "return.gst.gov.in/returns/auth/api/checkewbdetl?rtn_prd={MMYYYY}&section=B2B ({ewbCount})",
+        "GSTR-1_ewb_data": "return.gst.gov.in/returns/auth/api/ewbdetl?rtn_prd={MMYYYY}&section=B2B (EWB invoices JSON)",
+        "GSTR-2B": "gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd={MMYYYY} (149KB)",
+        "GSTR-3B_summary": "return.gst.gov.in/returns/auth/api/gstr3b/summary?rtn_prd={MMYYYY} (3.5KB)",
+        "GSTR-3B_taxpayble": "return.gst.gov.in/returns/auth/api/gstr3b/taxpayble?rtn_prd={MMYYYY} (7.3KB)",
+        "GSTR-3B_metadata": "return.gst.gov.in/returns/auth/api/formdetails?rtn_prd={MMYYYY}&rtn_typ=GSTR3B",
+        "GSTR-3B_save": "POST return.gst.gov.in/returns/auth/api/gstr3b/save (body: gstr3bSummary)",
+        "GSTR-3B_submit": "POST return.gst.gov.in/returns/auth/api/gstr3b/submit (body: {gstin, ret_period})",
+        "GSTR-3B_offsetliab": "POST return.gst.gov.in/returns/auth/api/gstr3b/offsetliab?rtn_prd={MMYYYY}",
+        "GSTR-3B_evc_generate": "POST return.gst.gov.in/returns/auth/api/submit/gstr3b/evc/generate (body: {pan, emailId, mobNo})",
+        "GSTR-3B_evc_validate": "POST return.gst.gov.in/returns/auth/api/submit/gstr3b/evc/validate (body: {ret_period, otp})",
+        "GSTR-3B_evc_resend": "POST return.gst.gov.in/returns/auth/api/submit/evc/resend (body: {fp, rtn_typ:'GSTR3B'})",
+        "IMS_count": "return.gst.gov.in/imsweb/auth/api/ims/getCount?goods_typ={ALL_OTH|INV_SUPP_ISD|IMP_GDS}",
+        "IMS_invoices": "return.gst.gov.in/imsweb/auth/api/ims/getInvoices?gstin={GSTIN}&section={B2B|B2BCN|B2BDN|...}",
+        "IMS_outward_count": "return.gst.gov.in/imsweb/auth/api/ims/getOutwardCount?rtnType={R1|R1A}&rtnprd={MMYYYY}",
+        "IMS_outward_invoices": "return.gst.gov.in/imsweb/auth/api/ims/getOutwardInvoices?gstin={GSTIN}&rtnType=R1&rtnprd={MMYYYY}&section=B2B"
+      },
+      "async_generate_download": {
+        "GSTR-1_offline": "offline/download/generate?flag=0&rtn_typ=GSTR1 → offline/download/url?file_num=1&rtn_typ=GSTR1",
+        "GSTR-2A_json": "offline/download/generate?flag=0&rtn_typ=GSTR2A → offline/download/url?file_num=1&rtn_typ=GSTR2A",
+        "GSTR-2A_excel": "offline/download/generate?flag=1&rtn_typ=GSTR2A → offline/download/url?file_num=1&rtn_typ=GSTR2A",
+        "GSTR-1_ewb": "offline/download/ewbgenerate?rtn_prd={MMYYYY} → returns token, wait 20 min"
+      },
+      "param_gotchas": {
+        "rtn_prd_vs_rtnprd": "GSTR-2B uses 'rtnprd' (no underscore), all others use 'rtn_prd'",
+        "retPeriod_vs_rtn_prd": "Some GSTR-3B APIs use 'retPeriod' (getr1r3bliab, getDetails, showpdf), others use 'rtn_prd'"
+      }
+    }
+  },
+  "ims": {
+    "type": "Invoice Management System",
+    "base_url": "https://return.gst.gov.in/imsweb",
+    "notes": "IMS allows taxpayers to Accept/Reject/Pending inward supply invoices before GSTR-2B generation. Records with no action are 'deemed accepted'. Uses FLAT invoice arrays (unlike GSTR-2B which groups by supplier ctin). Three categories: All other ITC, Inward Supplies from ISD, Import of Goods.",
+    "verified_with": "Nine Packaging (07AAGCN6684E1Z7) Apr 2026",
+    "controller_js": "https://returnstatic.gst.gov.in/uiassets/js/returns/imsDashboardctrl.js",
+    "pages": {
+      "dashboard": "/imsweb/auth/imsDashboard",
+      "inward_supplies": "/imsweb/auth/inwardsupplies",
+      "b2b_invoices": "/imsweb/auth/b2binvoice",
+      "outward_supplies": "/imsweb/auth/outwardsupplies",
+      "outward_supplies_detail": "/imsweb/auth/outwardsupplies/nt",
+      "outward_b2b": "/imsweb/auth/outwardsupplies/b2b"
+    },
+    "navigation": {
+      "entry_point": "Services > Returns > Invoice Management System (IMS) Dashboard",
+      "entry_url": "https://services.gst.gov.in/services/auth/quicklinks/returns → click 'Invoice Management System (IMS) Dashboard'",
+      "warning": "NEVER navigate directly to /imsweb URLs — use portal menu links for cross-subdomain session handoff"
+    },
+    "apis": {
+      "getCount": {
+        "url": "/imsweb/auth/api/ims/getCount?goods_typ={ALL_OTH|INV_SUPP_ISD|IMP_GDS}",
+        "method": "GET",
+        "notes": "Returns section-wise accept/reject/pending/noaction counts. Called once per goods_typ when page loads.",
+        "goods_typ_values": {
+          "ALL_OTH": "All other ITC — B2B, B2BA, B2BDN, B2BDNA, B2BCN, B2BCNA, ECOM, ECOMA",
+          "INV_SUPP_ISD": "Inward Supplies from ISD — ISD Invoice, ISD Amendments, ISD Credit Notes, ISD Credit Notes Amendments",
+          "IMP_GDS": "Import of Goods — IMPG, IMPG Amendments, IMPGSEZ, IMPGSEZ Amendments"
+        },
+        "verified_counts_nine_packaging": {
+          "all_oth_total": 443,
+          "b2b": {"noaction": 369, "accepted": 59, "rejected": 0, "pending": 0},
+          "b2ba": {"noaction": 0, "accepted": 0, "rejected": 0, "pending": 0},
+          "b2bdn": {"noaction": 1, "accepted": 0, "rejected": 0, "pending": 0},
+          "b2bdna": {"noaction": 0, "accepted": 0, "rejected": 0, "pending": 0},
+          "b2bcn": {"noaction": 12, "accepted": 2, "rejected": 0, "pending": 0},
+          "b2bcna": {"noaction": 0, "accepted": 0, "rejected": 0, "pending": 0},
+          "ecom": {"noaction": 0, "accepted": 0, "rejected": 0, "pending": 0},
+          "ecoma": {"noaction": 0, "accepted": 0, "rejected": 0, "pending": 0},
+          "imp_gds": {"impg": 2, "impg_amend": 0, "impgsez": 0, "impgsez_amend": 0},
+          "imp_gds_note": "Import of Goods has NO 'Rejected' column — only No Action, Accepted, Pending"
+        }
+      },
+      "getInvoices": {
+        "url": "/imsweb/auth/api/ims/getInvoices?gstin={GSTIN}&section={SECTION}",
+        "method": "GET",
+        "notes": "Returns FLAT array of inward invoices for a section. Unlike GSTR-2B (grouped by ctin), IMS returns a flat list with stin (supplier GSTIN) per record.",
+        "section_values": ["B2B", "B2BA", "B2BCN", "B2BCNA", "B2BDN", "B2BDNA", "ECOM", "ECOMA"],
+        "verified_b2b_count": 428,
+        "invoice_keys": ["stin", "tradenm", "ispendactblocked", "rtnprd", "srcform", "inum", "idt", "inv_typ", "pos", "srcfilstatus", "val", "txval", "iamt", "camt", "samt", "cess", "action", "hash", "isItcRedReqBlocked", "isRemarksBlocked"],
+        "action_values": {
+          "N": "No Action (deemed accepted)",
+          "A": "Accepted",
+          "R": "Rejected",
+          "P": "Pending"
+        }
+      },
+      "saveAction": {
+        "url": "/imsweb/auth/api/ims/saveAction",
+        "method": "POST",
+        "notes": "Save accept/reject/pending actions on invoices. WRITE ACTION — modifies IMS state. Request body contains invoice array with action field set.",
+        "request_body_keys": ["reqtyp", "boedata", "rtin"]
+      },
+      "get2BGenStatus": {
+        "url": "/imsweb/auth/api/ims/get2BGenStatus?gstin={GSTIN}",
+        "method": "GET",
+        "notes": "Check GSTR-2B generation status for the current period."
+      },
+      "applicableRtnPrds": {
+        "url": "/imsweb/auth/api/ims/applicableRtnPrds",
+        "method": "GET",
+        "notes": "Returns all available return periods from Oct 2019 onwards.",
+        "response_structure": "{years: [{year, months: [{month, value}]}]}"
+      },
+      "getStatus": {
+        "url": "/imsweb/auth/api/ims/getStatus",
+        "method": "GET",
+        "notes": "Get current IMS processing status."
+      },
+      "advSearch": {
+        "url": "/imsweb/auth/api/ims/advSearch",
+        "method": "GET",
+        "notes": "Advanced search for inward invoices."
+      },
+      "generate2B": {
+        "url": "/imsweb/auth/api/ims/generate2B",
+        "method": "POST",
+        "notes": "Trigger GSTR-2B generation. WRITE ACTION — initiates 2B computation from IMS data."
+      },
+      "resetIms": {
+        "url": "/imsweb/auth/api/ims/resetIms",
+        "method": "POST",
+        "notes": "Reset all IMS actions back to 'No Action'. WRITE ACTION — clears all accept/reject/pending."
+      },
+      "generateDoc": {
+        "url": "/imsweb/auth/api/ims/generateDoc?flag={0|1}",
+        "method": "GET",
+        "notes": "Generate/download inward supplies document (Excel). Async pattern: flag=0 triggers generation ('Your request for file generation has been accepted'), then flag=1 downloads the file. Uses createElement+click anchor download pattern. Button: 'DOWNLOAD IMS DETAILS (EXCEL)' on Inward Supplies page.",
+        "verified_url": "/imsweb/auth/api/ims/generateDoc?flag=0"
+      },
+      "deleteNotification": {
+        "url": "/imsweb/auth/api/ims/deleteNotification",
+        "method": "GET",
+        "notes": "Delete IMS notification."
+      },
+      "validateCOUser": {
+        "url": "/imsweb/auth/api/ims/validateCOUser",
+        "method": "GET",
+        "notes": "Validate if user is a Composition taxpayer (IMS not applicable for composition)."
+      },
+      "getDropDown": {
+        "url": "/imsweb/auth/api/ims/getDropDown",
+        "method": "GET",
+        "notes": "Returns dropdown values for Outward Supplies page — financial years, return periods, return types."
+      },
+      "getOutwardCount": {
+        "url": "/imsweb/auth/api/ims/getOutwardCount?rtnType={R1|R1A}&rtnprd={MMYYYY}",
+        "method": "GET",
+        "notes": "Returns section-wise record counts for outward supplies. Two tabs: 'Universal view' and 'Rejected records'.",
+        "rtnType_values": {"R1": "GSTR-1/IFF", "R1A": "GSTR-1A"},
+        "verified_counts_nine_packaging": {
+          "period": "032026",
+          "rtnType": "R1",
+          "universal_view_sections": [
+            {"heading": "4A, 4B, 6B, 6C - B2B, SEZ, DE Invoices", "section": "B2B", "count": 496},
+            {"heading": "9B - Credit / Debit Notes (Registered)", "section": "CDNR", "count": 8},
+            {"heading": "15 - Supplies U/s 9(5)", "section": "SUP95", "count": 0},
+            {"heading": "9A - Amended B2B Invoices", "section": "B2BA", "count": 0},
+            {"heading": "9C - Amended Credit / Debit Notes (Registered)", "section": "CDNRA", "count": 0},
+            {"heading": "15A - Amended Supplies U/s 9(5)", "section": "SUP95A", "count": 0}
+          ],
+          "rejected_records_sections": ["9B - Credit / Debit Notes (Registered)", "9A - Amended B2B Invoices", "9C - Amended Credit / Debit Notes (Registered)", "15A - Amended Supplies U/s 9(5)"]
+        }
+      },
+      "getOutwardInvoices": {
+        "url": "/imsweb/auth/api/ims/getOutwardInvoices?gstin={GSTIN}&rtnType={R1|R1A}&rtnprd={MMYYYY}&section={SECTION}",
+        "method": "GET",
+        "notes": "Returns FLAT array of outward invoices. Shows recipient actions on your invoices.",
+        "section_values": ["B2B", "CDNR", "SUP95", "B2BA", "CDNRA", "SUP95A"],
+        "outward_invoice_columns": ["Recipient GSTIN", "Trade/Legal Name", "Invoice Number", "Invoice Date", "Invoice Type", "Total Invoice Value", "Total Taxable Value", "Integrated Tax", "Central Tax", "State/UT Tax", "Cess", "Return Period", "Reported in Form", "Status", "Remarks by Recipient"],
+        "verified_b2b_count": 496
+      },
+      "outwardsAdvSrch": {
+        "url": "/imsweb/auth/api/ims/outwardsAdvSrch",
+        "method": "GET",
+        "notes": "Advanced search for outward invoices."
+      },
+      "generateOutwardsDoc": {
+        "url": "/imsweb/auth/api/ims/generateOutwardsDoc?flag={0|1}&rtnPrd={MMYYYY}&rtnTyp={R1|R1A}&section={ALLOSP|B2B|CDNR|...}&viewTyp={UNI|REJ}",
+        "method": "GET",
+        "notes": "Generate/download outward supplies document (Excel). Async pattern like generateDoc. Button: 'DOWNLOAD IMS DETAILS (EXCEL)' on Outward Supplies page.",
+        "params": {
+          "flag": "0=generate, 1=download",
+          "rtnPrd": "Period in MMYYYY format (e.g. 032026)",
+          "rtnTyp": "R1=GSTR-1/IFF, R1A=GSTR-1A",
+          "section": "ALLOSP=all sections, or specific section code",
+          "viewTyp": "UNI=Universal view, REJ=Rejected records"
+        },
+        "verified_url": "/imsweb/auth/api/ims/generateOutwardsDoc?flag=0&rtnPrd=032026&rtnTyp=R1&section=ALLOSP&viewTyp=UNI"
+      },
+      "rejectedrecords": {
+        "url": "/imsweb/auth/api/ims/rejectedrecords",
+        "method": "GET",
+        "notes": "Get rejected records (where liability added back in GSTR 3B)."
+      },
+      "rejRcrdsAdvSrch": {
+        "url": "/imsweb/auth/api/ims/rejRcrdsAdvSrch",
+        "method": "GET",
+        "notes": "Advanced search for rejected records."
+      },
+      "userdetails": {
+        "url": "/imsweb/auth/api/gstr1/userdetails?ctin={GSTIN}",
+        "method": "GET",
+        "notes": "Get supplier/recipient trade name and details by GSTIN."
+      },
+      "offline_download": {
+        "url": "/imsweb/auth/imsoffline/download",
+        "method": "GET",
+        "notes": "Offline download of IMS data. Button: 'OFFLINE' on IMS Dashboard."
+      }
+    },
+    "inward_supply_structure": {
+      "tabs": {
+        "all_other_itc": {
+          "goods_typ": "ALL_OTH",
+          "sections": [
+            {"num": "I", "heading": "B2B - Invoices", "section": "B2B"},
+            {"num": "II", "heading": "B2B - Invoices (Amendments)", "section": "B2BA"},
+            {"num": "III", "heading": "B2B - Debit Notes", "section": "B2BDN"},
+            {"num": "IV", "heading": "B2B - Debit Notes (Amendments)", "section": "B2BDNA"},
+            {"num": "V", "heading": "B2B - Credit Notes", "section": "B2BCN"},
+            {"num": "VI", "heading": "B2B - Credit Notes (Amendments)", "section": "B2BCNA"},
+            {"num": "VII", "heading": "Eco [9(5)] Invoices", "section": "ECOM"},
+            {"num": "VIII", "heading": "Eco [9(5)] Invoices (Amendments)", "section": "ECOMA"}
+          ],
+          "count_columns": ["No Action", "Accepted", "Rejected", "Pending"]
+        },
+        "inward_supplies_from_isd": {
+          "goods_typ": "INV_SUPP_ISD",
+          "sections": [
+            {"num": "I", "heading": "ISD - Invoice"},
+            {"num": "II", "heading": "ISD - Invoices (Amendments)"},
+            {"num": "III", "heading": "ISD - Credit Notes"},
+            {"num": "IV", "heading": "ISD - Credit Notes (Amendments)"}
+          ],
+          "count_columns": ["No Action", "Accepted", "Rejected", "Pending"]
+        },
+        "import_of_goods": {
+          "goods_typ": "IMP_GDS",
+          "sections": [
+            {"num": "I", "heading": "IMPG - Import of goods from overseas"},
+            {"num": "II", "heading": "IMPG (Amendments)"},
+            {"num": "III", "heading": "IMPGSEZ - Import of goods from SEZ"},
+            {"num": "IV", "heading": "IMPGSEZ (Amendments)"}
+          ],
+          "count_columns": ["No Action", "Accepted", "Pending"],
+          "note": "NO Rejected column — import invoices cannot be rejected"
+        }
+      }
+    },
+    "outward_supply_structure": {
+      "selection_page": {
+        "fields": ["Financial Year", "Return Period", "Return Type (R1=GSTR-1/IFF, R1A=GSTR-1A)"]
+      },
+      "tabs": {
+        "universal_view": "Universal view of B2B supplies reported in GSTR-1/1A/IFF",
+        "rejected_records": "Rejected records (where liability added back in GSTR 3B)"
+      },
+      "note": "Return Type not applicable for Rejected records section"
+    },
+    "info_dialog": "Records, where no action is taken by taxpayer, will be considered as Deemed accepted for GSTR 2B generation."
+  }
+}
