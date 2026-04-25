@@ -357,12 +357,30 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
   // Random delay before firing the API call
   await new Promise((r) => setTimeout(r, 400 + Math.floor(Math.random() * 600)));
 
-  const resp = await session.context.request.get(
+  // GSTR-2B endpoints:
+  //   v4.0 (Oct 2024+):  /gstr2b/auth/gstr2bdwld?rtnprd={period}
+  //   legacy:            /gstr2b/auth/api/gstr2b/getjson?rtnprd={period}
+  // Try v4.0 first; fall back on 404/410. Both return the same envelope
+  // shape; the FillGST web-app parser handles flat (v4.0) or rate-wise
+  // (legacy) tax fields.
+  const endpoints = [
+    `https://gstr2b.gst.gov.in/gstr2b/auth/gstr2bdwld?rtnprd=${period}`,
     `https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd=${period}`,
-    { headers: { Referer: "https://return.gst.gov.in/returns/auth/dashboard" } },
-  );
-  if (!resp.ok()) {
-    throw new Error(`GST portal returned HTTP ${resp.status()}`);
+  ];
+  let resp;
+  let lastStatus = 0;
+  for (const url of endpoints) {
+    resp = await session.context.request.get(url, {
+      headers: { Referer: "https://return.gst.gov.in/returns/auth/dashboard" },
+    });
+    lastStatus = resp.status();
+    if (lastStatus === 404 || lastStatus === 410) {
+      continue;
+    }
+    break;
+  }
+  if (!resp || !resp.ok()) {
+    throw new Error(`GST portal returned HTTP ${lastStatus}`);
   }
   const json = await resp.json();
   if (!json || (json.status !== undefined && json.status !== 1 && !json.data)) {
