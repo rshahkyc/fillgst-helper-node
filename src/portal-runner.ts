@@ -399,13 +399,16 @@ async function startSession(
 async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; size: number }> {
   let session = sessions.get(gstin);
 
-  // If no live session, try to spin up a headless one with stored cookies
+  // If no live session, try to spin up a headed (non-headless) one with
+  // stored cookies. Headed because GSTN's WAF distinguishes headless
+  // Chrome via the Sec-CH-UA-* and other browser hints; the testing-
+  // innovations server.js that successfully fetches uses headless: false.
   if (!session) {
     const cookies = await loadCookies(gstin);
     if (!cookies) {
       throw new Error("No active session and no stored cookies. Login first.");
     }
-    const browser = await launchUserBrowser({ headless: true });
+    const browser = await launchUserBrowser({ headless: false });
     const ctxOpts: BrowserContextOptions = {
       userAgent: UA,
       viewport: { width: 1366, height: 768 },
@@ -421,190 +424,141 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
     const page = await context.newPage();
     page.setDefaultTimeout(20000);
 
-    // KEY: navigate via `window.location.href` from inside the page,
-    // NOT page.goto. GSTN's WAF distinguishes between Playwright-
-    // initiated navigations (page.goto sends specific Sec-Fetch-*
-    // headers) and same-tab JS-driven navigations (which look like a
-    // user clicking a link). The doc explicitly notes:
-    //   "Let me use JavaScript navigation instead, which carries the
-    //    session properly."
-    // Without this trick the gstr2b subdomain's WAF returns 403 on
-    // every API call — even with valid AuthToken. With it, the
-    // browser performs the JS challenge naturally and the WAF
-    // issues its TS-cookie for gstr2b before the API call.
-    try {
-      await page.evaluate(() => {
-        window.location.href =
-          "https://services.gst.gov.in/services/auth/quicklinks/returns";
-      });
-      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
-      await new Promise((r) => setTimeout(r, 2000));
-      // Click the "Returns Dashboard" anchor by text — same trick:
-      // Angular ng-hide + JS click bypasses Playwright visibility check.
-      await page
-        .evaluate(() => {
-          const link = Array.from(document.querySelectorAll("a")).find((a) =>
-            a.textContent?.includes("Returns Dashboard"),
-          );
-          if (link) (link as HTMLElement).click();
-        })
-        .catch(() => {});
-      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
-      await new Promise((r) => setTimeout(r, 1500));
-    } catch {
-      // ignore — fetch will surface the real error
-    }
+    // Navigate via JS-driven nav, not page.goto, to match what a real
+    // user clicking a link looks like to the WAF.
+    await page
+      .evaluate(() => {
+        window.location.href = "https://services.gst.gov.in/services/auth/quicklinks/returns";
+      })
+      .catch(() => {});
+    await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 2000));
+    await page
+      .evaluate(() => {
+        const link = Array.from(document.querySelectorAll("a")).find((a) =>
+          a.textContent?.includes("Returns Dashboard"),
+        );
+        if (link) (link as HTMLElement).click();
+      })
+      .catch(() => {});
+    await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 1500));
 
     session = { browser, context, page, gstin };
+    sessions.set(gstin, session);
   }
 
-  // The GSTR-2B API call uses session.context.request, which carries
-  // the BrowserContext's cookies independently of whatever Page is
-  // currently focused. We DON'T need the page to be on the dashboard
-  // first — the auth cookies are sufficient. Earlier code did a Page-
-  // level dashboard verify here as a "sanity check" and then would
-  // hard-fail when GSTN's post-login modal gauntlet bounced the page
-  // to /accessdenied. That was a false negative; the cookies were
-  // fine.
+  // ─── Direct popup navigation to gstr2b.gst.gov.in/auth/gstr2b/summary ───
   //
-  // We still try a best-effort dashboard establish below ON FAILURE
-  // (401/403 from the API call), so a genuinely-stale session gets
-  // re-warmed before retrying. But the upfront verify is gone.
+  // The dashboard tile-click chain doesn't reliably work for every
+  // account (RMR Marmo's bounces to /accessdenied on the dashboard
+  // path). Skip it entirely. Use window.open from the logged-in
+  // services.gst.gov.in/auth/fowelcome page to directly open the
+  // gstr2b summary SPA in a new tab.
+  //
+  // Why this works:
+  //   - window.open from a same-domain-family page (.gst.gov.in)
+  //     is treated as a real user-initiated navigation by the WAF
+  //   - The popup browser context has the AuthToken cookie on
+  //     .gst.gov.in already (from login)
+  //   - The popup's top-level navigation triggers GSTN's WAF JS
+  //     challenge, which sets the gstr2b TS-cookie on the popup's
+  //     subdomain
+  //   - Once the SPA loads, same-origin fetch to /gstr2b/auth/api/...
+  //     carries ALL relevant cookies (AuthToken + gstr2b TS) and
+  //     bypasses the WAF
+  const popupCapture = session.context.waitForEvent("page", { timeout: 15000 }).catch(() => null);
+  const targetUrl = `https://gstr2b.gst.gov.in/gstr2b/auth/gstr2b/summary`;
+  await session.page
+    .evaluate((u: string) => {
+      window.open(u, "_blank");
+    }, targetUrl)
+    .catch(() => {});
+  let g2bPage = await popupCapture;
 
-  // Random delay before firing the API call
-  await new Promise((r) => setTimeout(r, 400 + Math.floor(Math.random() * 600)));
-
-  // GSTR-2B endpoints:
-  //   v4.0 (Oct 2024+):  /gstr2b/auth/gstr2bdwld?rtnprd={period}
-  //   legacy:            /gstr2b/auth/api/gstr2b/getjson?rtnprd={period}
-  // Try v4.0 first; fall back on 404/410. Both return the same envelope
-  // shape; the FillGST web-app parser handles flat (v4.0) or rate-wise
-  // (legacy) tax fields.
-  // First try: fetch via page.evaluate with credentials:'include'.
-  // This runs as cross-origin XHR from the page's current origin
-  // and carries the FULL browser cookie jar including JS-challenge
-  // cookies that context.request can't reproduce. The previous
-  // working session for Nine Packaging used exactly this pattern:
-  //   fetch('.../getjson?rtnprd=022026', {credentials: 'include'})
-  // returning 200 with the 2B JSON.
-  try {
-    const fetched = await session.page.evaluate(async (period: string) => {
-      const url = `https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd=${period}`;
-      const r = await fetch(url, { credentials: "include" });
-      return { status: r.status, ctype: r.headers.get("content-type") ?? "", body: await r.text() };
-    }, period);
-    if (fetched.status === 200 && fetched.ctype.includes("json")) {
-      const json = JSON.parse(fetched.body);
-      if (json && (json.status === undefined || json.status === 1 || json.data)) {
-        await saveCookies(gstin, await session.context.cookies());
-        const text = JSON.stringify(json);
-        return { data: json, size: text.length };
+  // Fallback: if popup blocker (or cross-origin restriction) ate the
+  // window.open, manually open a new page in the same context.
+  if (!g2bPage) {
+    g2bPage = await session.context.newPage().catch(() => null);
+    if (g2bPage) {
+      await g2bPage
+        .evaluate((u: string) => {
+          window.location.href = u;
+        }, targetUrl)
+        .catch(() => {});
+      // about:blank → window.location.href doesn't fire if page never
+      // loads anything; fall back to page.goto with a "look natural"
+      // referer.
+      if (!g2bPage.url().includes("gstr2b.gst.gov.in")) {
+        await g2bPage
+          .goto(targetUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 20000,
+            referer: "https://services.gst.gov.in/services/auth/fowelcome",
+          })
+          .catch(() => {});
       }
     }
-    // page.evaluate returned non-200 or non-JSON — fall through to
-    // the context.request.get attempts below.
-  } catch {
-    // CORS-blocked or page.evaluate threw — fall through.
   }
 
-  // Order matters. The legacy /api/gstr2b/getjson endpoint is the
-  // confirmed API per GST-PORTAL-AUTOMATION-KNOWLEDGE.md (section 5
-  // line 386). The v4.0 /gstr2bdwld URL returns the gstr2b SPA shell
-  // HTML, NOT the JSON envelope. Try API endpoint first.
-  const endpoints = [
-    `https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd=${period}`,
-    `https://gstr2b.gst.gov.in/gstr2b/auth/gstr2bdwld?rtnprd=${period}`,
-  ];
-  // Try each endpoint. On 401/403 (auth expired), re-establish the
-  // dashboard once and retry the same endpoint — covers the case where
-  // cookies are still present in the jar but GSTN has invalidated the
-  // session token server-side.
-  let resp;
-  let lastStatus = 0;
-  let triedReauth = false;
-  for (const url of endpoints) {
-    resp = await session.context.request.get(url, {
-      headers: {
-        Referer: "https://return.gst.gov.in/returns/auth/dashboard",
-        Accept: "application/json, text/plain, */*",
-      },
-    });
-    lastStatus = resp.status();
-    const ctype = resp.headers()["content-type"] ?? "";
-    // Skip-and-try-next on:
-    //   - 404 / 410   → endpoint moved
-    //   - 200 + HTML  → URL hit the SPA shell, not the API (e.g. the
-    //                    v4.0 /gstr2bdwld URL returns the page HTML)
-    if (lastStatus === 404 || lastStatus === 410 || (resp.ok() && !ctype.includes("json"))) {
-      continue;
-    }
-    if ((lastStatus === 401 || lastStatus === 403) && !triedReauth) {
-      triedReauth = true;
-      try {
-        await establishReturnsSession(session.page);
-      } catch {
-        // dashboard re-establish failed; fall through to error below
-      }
-      // Retry once on the same URL after re-warm.
-      resp = await session.context.request.get(url, {
-        headers: {
-          Referer: "https://return.gst.gov.in/returns/auth/dashboard",
-          Accept: "application/json, text/plain, */*",
-        },
-      });
-      lastStatus = resp.status();
-    }
-    break;
+  if (!g2bPage) {
+    throw new Error("Couldn't open gstr2b.gst.gov.in popup — Playwright context.newPage failed.");
   }
-  if (!resp || !resp.ok()) {
-    let bodyHint = "";
-    try {
-      const body = await resp.text();
-      bodyHint = body.slice(0, 300).replace(/\s+/g, " ");
-    } catch {
-      // ignore
-    }
-    throw new Error(`GST portal returned HTTP ${lastStatus}${bodyHint ? `. Body: ${bodyHint}` : ""}`);
-  }
-  // Detect HTML-instead-of-JSON before .json() throws "Unexpected
-  // token <". GSTN returns HTML on:
-  //   - WAF block (page = nginx default block)
-  //   - session expired (page = login form)
-  //   - /accessdenied bounce (page = error/accessdenied with "Access Denied!" text)
-  // Each surfaces a different remediation, so we sniff the body.
-  const ctype = resp.headers()["content-type"] ?? "";
-  if (!ctype.includes("json")) {
-    const body = await resp.text();
-    const lc = body.toLowerCase();
-    const finalUrl = resp.url ? resp.url() : "(unknown)";
-    if (lc.includes("access denied") || lc.includes("accessdenied")) {
-      throw new Error(
-        `gstr2b call bounced to access-denied. The auth cookies from /authenticate aren't being recognized by gstr2b.gst.gov.in's WAF. Final URL: ${finalUrl}.`,
-      );
-    }
-    if (lc.includes("invalid login") || lc.includes("session timeout") || lc.includes("services/login")) {
-      throw new Error(
-        `gstr2b call returned the login page. Session expired or never fully authenticated. Final URL: ${finalUrl}.`,
-      );
-    }
+
+  // Wait for the SPA to fully load + run its JS challenge. The WAF
+  // sets a TS-cookie for the gstr2b subdomain during this window.
+  await g2bPage.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 5000));
+
+  // If we got bounced to /accessdenied, that's the same RBA / Aadhaar
+  // / e-KYC issue we've been hitting. Surface it cleanly.
+  const popupUrl = g2bPage.url();
+  if (popupUrl.includes("accessdenied") || popupUrl.includes("error/accessdenied")) {
+    await g2bPage.close().catch(() => {});
     throw new Error(
-      `gstr2b returned non-JSON (content-type=${ctype}). First 200 chars: ${body.slice(0, 200).replace(/\s+/g, " ")}`,
+      `gstr2b.gst.gov.in bounced to /accessdenied. The current account/IP combination is flagged by GSTN's WAF — likely Aadhaar/e-KYC pending OR short-term IP throttle from too many automation attempts. Final URL: ${popupUrl}.`,
     );
   }
-  const json = await resp.json();
-  if (!json || (json.status !== undefined && json.status !== 1 && !json.data)) {
-    const msg =
-      typeof json?.error?.message === "string"
-        ? json.error.message
-        : "Portal returned unexpected response — session may have expired";
-    throw new Error(msg);
+  if (!popupUrl.includes("gstr2b.gst.gov.in")) {
+    await g2bPage.close().catch(() => {});
+    throw new Error(
+      `gstr2b popup landed on unexpected URL: ${popupUrl}. Expected gstr2b.gst.gov.in/...`,
+    );
   }
 
-  // Refresh saved cookies (portal may have rotated tokens)
-  await saveCookies(gstin, await session.context.cookies());
+  // Same-origin fetch via the popup's evaluate. Relative URL — cookies
+  // attach automatically including the WAF cookie just issued.
+  const g2bResult = (await g2bPage.evaluate(async (prd: string) => {
+    const r = await fetch(`/gstr2b/auth/api/gstr2b/getjson?rtnprd=${prd}`, {
+      credentials: "include",
+    });
+    return {
+      status: r.status,
+      ctype: r.headers.get("content-type") ?? "",
+      body: await r.text(),
+    };
+  }, period)) as { status: number; ctype: string; body: string };
 
-  const text = JSON.stringify(json);
-  return { data: json, size: text.length };
+  await g2bPage.close().catch(() => {});
+
+  if (g2bResult.status !== 200) {
+    throw new Error(
+      `GSTR-2B API returned HTTP ${g2bResult.status}. First 200 chars: ${g2bResult.body.slice(0, 200)}`,
+    );
+  }
+  if (!g2bResult.ctype.includes("json")) {
+    throw new Error(
+      `GSTR-2B API returned non-JSON content-type=${g2bResult.ctype}. First 200 chars: ${g2bResult.body.slice(0, 200)}`,
+    );
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(g2bResult.body);
+  } catch (e) {
+    throw new Error(`GSTR-2B API JSON parse failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  await saveCookies(gstin, await session.context.cookies());
+  return { data: json, size: g2bResult.body.length };
 }
 
 // ── Express routes ────────────────────────────────────────
