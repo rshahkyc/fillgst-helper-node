@@ -548,20 +548,20 @@ export function runPortalServer(app: Express): void {
 
       if (isOnDashboard(session.page.url())) {
         // Login itself succeeded — captcha was accepted, cookies are
-        // valid. The subsequent dashboard hand-off is best-effort: if
-        // the post-login modal gauntlet (Aadhaar / e-KYC / access-denied
-        // bounce) trips it, the cookies are still good and the GSTR-2B
-        // API call will use them directly without needing the dashboard
-        // to be loaded in a Page.
-        try {
-          await establishReturnsSession(session.page);
-        } catch (err) {
-          console.warn(
-            `[helper] establishReturnsSession failed after captcha (non-fatal): ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
+        // valid. We deliberately DO NOT navigate to /quicklinks/returns
+        // here:
+        //   - GSTN often bounces that URL to /services/error/accessdenied
+        //     for accounts that haven't completed Aadhaar / e-KYC, OR
+        //     when the logged-in user is not an authorised signatory
+        //     for the GSTIN-context of that link.
+        //   - Even when it works, it's not REQUIRED — the GSTR-2B /
+        //     IMS API endpoints under gstr2b.gst.gov.in / etc. accept
+        //     the auth cookies directly without prior dashboard nav.
+        //   - Hard-failing here would surface as "Captcha submission
+        //     failed" in the cloud UI even though the actual login was
+        //     successful, confusing the user.
+        // So we just snapshot the cookies and report done. fetch2b
+        // handles its own session warming if the API rejects.
         await saveCookies(gstin, await session.context.cookies());
         return res.json({ ok: true, step: "done", message: "Logged in (no OTP)" });
       }
@@ -591,7 +591,9 @@ export function runPortalServer(app: Express): void {
       await new Promise((r) => setTimeout(r, 3000));
 
       if (isOnDashboard(session.page.url())) {
-        await establishReturnsSession(session.page);
+        // Same reasoning as the /portal/captcha success path: skip
+        // the /quicklinks/returns hand-off (often bounces to
+        // /accessdenied) and let the API call warm itself if needed.
         await saveCookies(gstin, await session.context.cookies());
         return res.json({ ok: true, step: "done", message: "OTP accepted" });
       }
