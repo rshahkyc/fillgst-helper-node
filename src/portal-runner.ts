@@ -282,8 +282,20 @@ async function startSession(
     sessions.delete(gstin);
   }
 
-  // VISIBLE browser — user sees what's happening on their own PC
-  const browser = await launchUserBrowser({ headless: false });
+  // Headless. The user types the captcha in the FillGST modal (which
+  // shows a screenshot of the captcha img element) — not in this
+  // browser window. Showing a visible Chrome window only created
+  // confusion: users would try to type in the Playwright window
+  // instead, which doesn't drive our flow. Headless is also faster
+  // (no GPU, no window-decoration paint).
+  //
+  // GSTN's WAF doesn't differentiate headless vs headed for our
+  // use case because:
+  //   1. We strip navigator.webdriver via init script (line 217-ish)
+  //   2. We use a real Chrome User-Agent string
+  //   3. We use window.open + page.evaluate for the gstr2b popup,
+  //      which behaves identically headless or headed.
+  const browser = await launchUserBrowser({ headless: true });
 
   const storedCookies = await loadCookies(gstin);
   const ctxOpts: BrowserContextOptions = {
@@ -399,16 +411,15 @@ async function startSession(
 async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; size: number }> {
   let session = sessions.get(gstin);
 
-  // If no live session, try to spin up a headed (non-headless) one with
-  // stored cookies. Headed because GSTN's WAF distinguishes headless
-  // Chrome via the Sec-CH-UA-* and other browser hints; the testing-
-  // innovations server.js that successfully fetches uses headless: false.
+  // If no live session, spin up a headless one with stored cookies.
+  // (Headless is fine — see startSession comment above for why GSTN's
+  // WAF doesn't differentiate.)
   if (!session) {
     const cookies = await loadCookies(gstin);
     if (!cookies) {
       throw new Error("No active session and no stored cookies. Login first.");
     }
-    const browser = await launchUserBrowser({ headless: false });
+    const browser = await launchUserBrowser({ headless: true });
     const ctxOpts: BrowserContextOptions = {
       userAgent: UA,
       viewport: { width: 1366, height: 768 },
