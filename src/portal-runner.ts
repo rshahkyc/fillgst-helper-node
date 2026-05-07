@@ -572,6 +572,188 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
   return { data: json, size: g2bResult.body.length };
 }
 
+// ── Generic portal-API fetcher ─────────────────────────────
+//
+// All same-domain (`return.gst.gov.in` + `services.gst.gov.in`) APIs
+// can be reached once we have a logged-in session — there's no per-
+// subdomain WAF challenge the way `gstr2b.gst.gov.in` has. So we share
+// the session-establishment code from `fetch2b()` (login + cookies +
+// JS-driven nav to the returns dashboard) and just run the per-API
+// `page.evaluate(fetch(...))` from there.
+//
+// `gstr2b.gst.gov.in` URLs route to the existing fetch2b() popup-
+// window flow because the WAF JS challenge has to fire on a fresh
+// top-level navigation in the gstr2b subdomain context.
+//
+// API surface — single endpoint, generic shape:
+//
+//   POST /portal/fetch-api  {
+//     gstin:  string         // 15-char GSTIN (used for session lookup)
+//     url:    string         // absolute URL on a *.gst.gov.in subdomain
+//     method?: "GET" | "POST"   // default GET
+//     body?:   object        // POST body (will be JSON.stringified)
+//     referer?: string       // optional Referer header (default: returns dashboard)
+//   }
+//
+// Returns: { ok: true, status: number, contentType: string, body: any, size: number }
+
+interface FetchApiInput {
+  gstin: string;
+  url: string;
+  method?: "GET" | "POST";
+  body?: unknown;
+  referer?: string;
+}
+
+interface FetchApiResult {
+  status: number;
+  contentType: string;
+  body: unknown;
+  size: number;
+}
+
+async function ensureReturnsSession(gstin: string): Promise<Session> {
+  let session = sessions.get(gstin);
+  if (session) return session;
+
+  // Spin up a headless session with stored cookies — same flow as
+  // fetch2b() but factored out so the generic fetcher can share it.
+  const cookies = await loadCookies(gstin);
+  if (!cookies) {
+    throw new Error("No active session and no stored cookies. Login first.");
+  }
+  const browser = await launchUserBrowser({ headless: true });
+  const ctxOpts: BrowserContextOptions = {
+    userAgent: UA,
+    viewport: { width: 1366, height: 768 },
+    locale: "en-IN",
+    timezoneId: "Asia/Kolkata",
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (ctxOpts as any).storageState = { cookies, origins: [] };
+  const context = await browser.newContext(ctxOpts);
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => false });
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(20_000);
+
+  // JS-driven nav, NOT page.goto — preserves the WAF-clearance signal.
+  await page
+    .evaluate(() => {
+      window.location.href = "https://services.gst.gov.in/services/auth/quicklinks/returns";
+    })
+    .catch(() => {});
+  await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 2_000));
+  await page
+    .evaluate(() => {
+      const link = Array.from(document.querySelectorAll("a")).find((a) =>
+        a.textContent?.includes("Returns Dashboard"),
+      );
+      if (link) (link as HTMLElement).click();
+    })
+    .catch(() => {});
+  await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 1_500));
+
+  session = { browser, context, page, gstin };
+  sessions.set(gstin, session);
+  return session;
+}
+
+/**
+ * Fetch ANY portal API — handles same-domain (`return.gst.gov.in` +
+ * `services.gst.gov.in`) directly via `page.evaluate`, and delegates
+ * `gstr2b.gst.gov.in` to the same popup flow as `fetch2b()`.
+ */
+async function fetchPortalApi(input: FetchApiInput): Promise<FetchApiResult> {
+  const { gstin, url, method = "GET", body, referer } = input;
+
+  let urlObj: URL;
+  try {
+    urlObj = new URL(url);
+  } catch {
+    throw new Error(`Invalid URL: ${url}`);
+  }
+  if (!urlObj.hostname.endsWith(".gst.gov.in")) {
+    throw new Error(`Refusing to fetch non-GSTN host: ${urlObj.hostname}`);
+  }
+
+  // gstr2b subdomain — defer to the popup flow that already works.
+  // We can't use the standard returns-dashboard session because gstr2b
+  // requires its own WAF JS challenge to set the TS-cookie.
+  if (urlObj.hostname === "gstr2b.gst.gov.in") {
+    throw new Error(
+      "gstr2b.gst.gov.in URLs must use POST /portal/fetch2b, not the generic /portal/fetch-api endpoint. The popup-window WAF dance is in fetch2b().",
+    );
+  }
+
+  const session = await ensureReturnsSession(gstin);
+
+  // Run the fetch in-page so cookies attach automatically. We pass the
+  // ABSOLUTE URL (not a relative path) so a same-origin fetch from
+  // return.gst.gov.in CAN reach services.gst.gov.in too — the cookies
+  // are on `.gst.gov.in` so they apply across subdomains.
+  const result = (await session.page.evaluate(
+    async (args: {
+      url: string;
+      method: "GET" | "POST";
+      body: unknown;
+      referer: string | undefined;
+    }) => {
+      const headers: Record<string, string> = {
+        Accept: "application/json, text/plain, */*",
+      };
+      if (args.body !== undefined) headers["Content-Type"] = "application/json";
+      if (args.referer) headers["Referer"] = args.referer;
+      const init: RequestInit = {
+        method: args.method,
+        headers,
+        credentials: "include",
+      };
+      if (args.body !== undefined) {
+        init.body = JSON.stringify(args.body);
+      }
+      const r = await fetch(args.url, init);
+      const text = await r.text();
+      return {
+        status: r.status,
+        contentType: r.headers.get("content-type") ?? "",
+        body: text,
+      };
+    },
+    {
+      url,
+      method,
+      body,
+      referer: referer ?? "https://return.gst.gov.in/returns/auth/dashboard",
+    },
+  )) as { status: number; contentType: string; body: string };
+
+  let parsed: unknown = result.body;
+  if (result.contentType.includes("json")) {
+    try {
+      parsed = JSON.parse(result.body);
+    } catch {
+      // Fall through with raw text — caller can decide how to handle.
+    }
+  }
+
+  // Refresh cookies on every successful fetch (some session tokens
+  // rotate per response — safer to persist after each call).
+  if (result.status === 200) {
+    await saveCookies(gstin, await session.context.cookies()).catch(() => {});
+  }
+
+  return {
+    status: result.status,
+    contentType: result.contentType,
+    body: parsed,
+    size: result.body.length,
+  };
+}
+
 // ── Express routes ────────────────────────────────────────
 
 export function runPortalServer(app: Express): void {
@@ -694,6 +876,28 @@ export function runPortalServer(app: Express): void {
         return res.status(400).json({ ok: false, error: "gstin and period required" });
       }
       const result = await fetch2b(gstin, period);
+      return res.json({ ok: true, ...result });
+    } catch (err) {
+      return res.status(500).json({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  /**
+   * Generic GSTN portal API call. Used by FillGST's gstr1-portal /
+   * gstr3b-portal / ims-portal clients to fetch summaries + invoice
+   * lists + autopop data via the same Playwright session that
+   * `fetch2b()` already establishes.
+   */
+  app.post("/portal/fetch-api", async (req, res) => {
+    try {
+      const input = req.body as FetchApiInput;
+      if (!input?.gstin || !input?.url) {
+        return res.status(400).json({ ok: false, error: "gstin and url required" });
+      }
+      const result = await fetchPortalApi(input);
       return res.json({ ok: true, ...result });
     } catch (err) {
       return res.status(500).json({
