@@ -221,6 +221,15 @@ async function establishReturnsSession(p: Page): Promise<void> {
     })
     .catch(() => {});
 
+  // Detect the early accessdenied bounce. GSTN throws this when the
+  // logged-in user can't access the returns area — usually because
+  // Aadhaar / e-KYC is incomplete on that GSTIN's account. Surface
+  // the exact URL substring "accessdenied" so the route handler can
+  // map it to a user-actionable error.
+  if (p.url().includes("error/accessdenied") || p.url().includes("access-denied")) {
+    throw new Error(`[returns-quicklinks] bounced to accessdenied — current URL: ${p.url()}`);
+  }
+
   await dismissPortalModals(p);
   await new Promise((r) => setTimeout(r, 3000));
 
@@ -547,21 +556,45 @@ export function runPortalServer(app: Express): void {
       await new Promise((r) => setTimeout(r, 3000));
 
       if (isOnDashboard(session.page.url())) {
-        // Login itself succeeded — captcha was accepted, cookies are
-        // valid. We deliberately DO NOT navigate to /quicklinks/returns
-        // here:
-        //   - GSTN often bounces that URL to /services/error/accessdenied
-        //     for accounts that haven't completed Aadhaar / e-KYC, OR
-        //     when the logged-in user is not an authorised signatory
-        //     for the GSTIN-context of that link.
-        //   - Even when it works, it's not REQUIRED — the GSTR-2B /
-        //     IMS API endpoints under gstr2b.gst.gov.in / etc. accept
-        //     the auth cookies directly without prior dashboard nav.
-        //   - Hard-failing here would surface as "Captcha submission
-        //     failed" in the cloud UI even though the actual login was
-        //     successful, confusing the user.
-        // So we just snapshot the cookies and report done. fetch2b
-        // handles its own session warming if the API rejects.
+        // Login succeeded — now we MUST establish the returns
+        // dashboard session so the gstr2b.gst.gov.in API call works.
+        //
+        // Per GST-PORTAL-AUTOMATION-KNOWLEDGE.md (testing innovations
+        // project, section 8 line 463): only Playwright's
+        // `context.request.get()` bypasses GSTN's WAF on the gstr2b
+        // subdomain. And it only works AFTER the browser has
+        // navigated through services.gst.gov.in →
+        // /services/auth/quicklinks/returns → "Returns Dashboard"
+        // click → return.gst.gov.in. Without that chain the WAF
+        // returns 302 → /services/error/accessdenied on every
+        // gstr2b request.
+        //
+        // We previously (commit efcfff6) skipped this step because
+        // it was bouncing to /accessdenied for SOME accounts (those
+        // with Aadhaar / e-KYC unverified). But skipping it broke
+        // the actual fetch step for ALL accounts. Better fix: keep
+        // the establishment, surface /accessdenied as a clear,
+        // actionable error to the user.
+        try {
+          await establishReturnsSession(session.page);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await saveCookies(gstin, await session.context.cookies());
+          // /accessdenied bounce is the most common failure here;
+          // call it out specifically so the user knows it's an
+          // account-side issue (Aadhaar / e-KYC), not FillGST's bug.
+          if (msg.includes("accessdenied") || msg.includes("access denied")) {
+            return res.json({
+              ok: false,
+              error:
+                "GST portal blocked the dashboard navigation (access denied). This GSTIN's account most likely has Aadhaar / e-KYC pending. Sign in to gst.gov.in once in your normal browser, complete any pending verification prompts, then retry.",
+            });
+          }
+          return res.json({
+            ok: false,
+            error: `Logged in, but dashboard navigation failed: ${msg}`,
+          });
+        }
         await saveCookies(gstin, await session.context.cookies());
         return res.json({ ok: true, step: "done", message: "Logged in (no OTP)" });
       }
@@ -591,9 +624,29 @@ export function runPortalServer(app: Express): void {
       await new Promise((r) => setTimeout(r, 3000));
 
       if (isOnDashboard(session.page.url())) {
-        // Same reasoning as the /portal/captcha success path: skip
-        // the /quicklinks/returns hand-off (often bounces to
-        // /accessdenied) and let the API call warm itself if needed.
+        // Same reasoning as the /portal/captcha success path:
+        // establishReturnsSession is REQUIRED for the gstr2b API
+        // call to work (Playwright's context.request.get only
+        // bypasses the WAF after the dashboard has been navigated
+        // to via the click chain). On /accessdenied we surface a
+        // clear account-side error.
+        try {
+          await establishReturnsSession(session.page);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await saveCookies(gstin, await session.context.cookies());
+          if (msg.includes("accessdenied") || msg.includes("access denied")) {
+            return res.json({
+              ok: false,
+              error:
+                "GST portal blocked the dashboard navigation (access denied). This GSTIN's account most likely has Aadhaar / e-KYC pending. Sign in to gst.gov.in once in your normal browser, complete any pending verification prompts, then retry.",
+            });
+          }
+          return res.json({
+            ok: false,
+            error: `OTP accepted, but dashboard navigation failed: ${msg}`,
+          });
+        }
         await saveCookies(gstin, await session.context.cookies());
         return res.json({ ok: true, step: "done", message: "OTP accepted" });
       }
