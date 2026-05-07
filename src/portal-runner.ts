@@ -421,17 +421,35 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
     const page = await context.newPage();
     page.setDefaultTimeout(20000);
 
-    // Warm up the gstr2b subdomain. GSTN runs a per-subdomain WAF
-    // (F5 / Tealeaf TS-cookies, one per subdomain) — auth cookies
-    // on .gst.gov.in alone aren't enough; the gstr2b subdomain
-    // refuses 403 until it has its OWN TS-cookie set by a prior
-    // GET to its host. The dashboard nav covers return.gst.gov.in,
-    // not gstr2b.
+    // KEY: navigate via `window.location.href` from inside the page,
+    // NOT page.goto. GSTN's WAF distinguishes between Playwright-
+    // initiated navigations (page.goto sends specific Sec-Fetch-*
+    // headers) and same-tab JS-driven navigations (which look like a
+    // user clicking a link). The doc explicitly notes:
+    //   "Let me use JavaScript navigation instead, which carries the
+    //    session properly."
+    // Without this trick the gstr2b subdomain's WAF returns 403 on
+    // every API call — even with valid AuthToken. With it, the
+    // browser performs the JS challenge naturally and the WAF
+    // issues its TS-cookie for gstr2b before the API call.
     try {
-      await page.goto("https://gstr2b.gst.gov.in/gstr2b/auth/dashboard", {
-        waitUntil: "domcontentloaded",
-        timeout: 15000,
+      await page.evaluate(() => {
+        window.location.href =
+          "https://services.gst.gov.in/services/auth/quicklinks/returns";
       });
+      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 2000));
+      // Click the "Returns Dashboard" anchor by text — same trick:
+      // Angular ng-hide + JS click bypasses Playwright visibility check.
+      await page
+        .evaluate(() => {
+          const link = Array.from(document.querySelectorAll("a")).find((a) =>
+            a.textContent?.includes("Returns Dashboard"),
+          );
+          if (link) (link as HTMLElement).click();
+        })
+        .catch(() => {});
+      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
       await new Promise((r) => setTimeout(r, 1500));
     } catch {
       // ignore — fetch will surface the real error
@@ -462,14 +480,37 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
   // Try v4.0 first; fall back on 404/410. Both return the same envelope
   // shape; the FillGST web-app parser handles flat (v4.0) or rate-wise
   // (legacy) tax fields.
+  // First try: fetch via page.evaluate with credentials:'include'.
+  // This runs as cross-origin XHR from the page's current origin
+  // and carries the FULL browser cookie jar including JS-challenge
+  // cookies that context.request can't reproduce. The previous
+  // working session for Nine Packaging used exactly this pattern:
+  //   fetch('.../getjson?rtnprd=022026', {credentials: 'include'})
+  // returning 200 with the 2B JSON.
+  try {
+    const fetched = await session.page.evaluate(async (period: string) => {
+      const url = `https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd=${period}`;
+      const r = await fetch(url, { credentials: "include" });
+      return { status: r.status, ctype: r.headers.get("content-type") ?? "", body: await r.text() };
+    }, period);
+    if (fetched.status === 200 && fetched.ctype.includes("json")) {
+      const json = JSON.parse(fetched.body);
+      if (json && (json.status === undefined || json.status === 1 || json.data)) {
+        await saveCookies(gstin, await session.context.cookies());
+        const text = JSON.stringify(json);
+        return { data: json, size: text.length };
+      }
+    }
+    // page.evaluate returned non-200 or non-JSON — fall through to
+    // the context.request.get attempts below.
+  } catch {
+    // CORS-blocked or page.evaluate threw — fall through.
+  }
+
   // Order matters. The legacy /api/gstr2b/getjson endpoint is the
   // confirmed API per GST-PORTAL-AUTOMATION-KNOWLEDGE.md (section 5
-  // line 386). The v4.0 /gstr2bdwld URL turned out to return the
-  // gstr2b SPA shell HTML (with <title>Goods & Services Tax (GST)
-  // | GSTR2B</title> and <base href="/gstr2b/">), NOT the JSON
-  // envelope — it's the page URL, not the API URL. Try the API
-  // endpoint first; the v4.0 path is kept only for the unlikely
-  // scenario that GSTN renames it again.
+  // line 386). The v4.0 /gstr2bdwld URL returns the gstr2b SPA shell
+  // HTML, NOT the JSON envelope. Try API endpoint first.
   const endpoints = [
     `https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd=${period}`,
     `https://gstr2b.gst.gov.in/gstr2b/auth/gstr2bdwld?rtnprd=${period}`,
