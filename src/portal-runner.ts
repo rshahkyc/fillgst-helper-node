@@ -136,48 +136,122 @@ async function verifyPageOpen(
   await new Promise((r) => setTimeout(r, jitter));
 }
 
-async function establishReturnsSession(p: Page): Promise<void> {
-  await p.goto(
-    "https://services.gst.gov.in/services/auth/quicklinks/returns",
-    { waitUntil: "domcontentloaded", timeout: 20000 },
-  );
+/**
+ * Dismiss the post-login pop-up gauntlet GST portal hits users with —
+ * Aadhaar prompt, e-KYC nag, "geocoded address available", "update
+ * bank details", etc. Each one of these blocks the rest of the page
+ * with a backdrop and silently breaks any subsequent click-through if
+ * not closed first. Ported verbatim from FILLGSTV1's session-manager.ts
+ * (the hard-won list of dismissable button texts).
+ */
+async function dismissPortalModals(p: Page): Promise<void> {
+  await p
+    .evaluate(() => {
+      const dismissTexts = [
+        "REMIND ME LATER",
+        "Remind Me Later",
+        "Remind me later",
+        "remind me later",
+        "Close",
+        "CLOSE",
+        "Cancel",
+        "CANCEL",
+        "Skip",
+        "SKIP",
+        "No, Thanks",
+        "Later",
+      ];
+      const allButtons = Array.from(
+        document.querySelectorAll("button, a.btn, input[type='button']"),
+      );
+      for (const el of allButtons) {
+        const txt = (el.textContent ?? (el as HTMLInputElement).value ?? "").trim();
+        if (!txt) continue;
+        if (dismissTexts.some((t) => txt.toLowerCase() === t.toLowerCase())) {
+          const rect = (el as HTMLElement).getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            (el as HTMLElement).click();
+          }
+        }
+      }
+      // Also try clicking modal × close buttons.
+      const closeIcons = Array.from(
+        document.querySelectorAll(
+          ".modal-header .close, button.close, .ui-dialog-titlebar-close",
+        ),
+      );
+      for (const el of closeIcons) {
+        const rect = (el as HTMLElement).getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          (el as HTMLElement).click();
+        }
+      }
+    })
+    .catch(() => {});
+  // Give the close animations time to finish before the next interaction.
+  await new Promise((r) => setTimeout(r, 800));
+}
 
-  await verifyPageOpen(
-    p,
-    "services-returns-quicklinks",
-    [
-      "services.gst.gov.in/services/auth/quicklinks/returns",
-      "services.gst.gov.in/services/auth",
-    ],
-    ['a:has-text("Returns Dashboard")', "a.col-sm-3", ".content-pannel", "body"],
-    20000,
-  );
+/**
+ * Land the page on `return.gst.gov.in/returns/auth/dashboard` so the
+ * subsequent GSTR-2B / IMS / ledger API calls hit a fully-warmed
+ * session. Tolerant of post-login modals + the GSTN access-denied
+ * interstitial — V1 hit both of those repeatedly.
+ *
+ * Sequence:
+ *   1. Dismiss any modals already up (twice with a settle pause —
+ *      modals chain).
+ *   2. Soft-goto /services/auth/quicklinks/returns; if it bounces to
+ *      /accessdenied or any other page we don't fail, we just continue
+ *      to the click-through which usually works anyway.
+ *   3. Click the "Returns Dashboard" anchor by text (resilient to
+ *      class-name changes between portal updates).
+ *   4. Wait for the dashboard's specific selects (#fin + #mon) to be
+ *      visible — that's the unambiguous "we made it" signal.
+ */
+async function establishReturnsSession(p: Page): Promise<void> {
+  await dismissPortalModals(p);
+  await new Promise((r) => setTimeout(r, 600));
+  await dismissPortalModals(p);
+
+  await p
+    .goto("https://services.gst.gov.in/services/auth/quicklinks/returns", {
+      waitUntil: "domcontentloaded",
+      timeout: 20000,
+    })
+    .catch(() => {});
+
+  await dismissPortalModals(p);
+  await new Promise((r) => setTimeout(r, 3000));
 
   await p.evaluate(() => {
-    const links = Array.from(document.querySelectorAll("a"));
-    const target = links.find((a) =>
+    const link = Array.from(document.querySelectorAll("a")).find((a) =>
       a.textContent?.includes("Returns Dashboard"),
     );
-    if (target) target.click();
+    if (link) (link as HTMLElement).click();
   });
 
-  await verifyPageOpen(
-    p,
-    "returns-dashboard",
-    [
-      "return.gst.gov.in/returns/auth/dashboard",
-      "return.gst.gov.in/returns/auth",
-    ],
-    [
-      "select#fin",
-      "select#mon",
-      ".btn-search",
-      'button:has-text("Search")',
-      ".return-period",
-      "body",
-    ],
-    25000,
-  );
+  await p
+    .waitForFunction(
+      () => {
+        if (window.location.hostname !== "return.gst.gov.in") return false;
+        const fy = document.querySelector("select#fin, select[name='fin']");
+        const mon = document.querySelector("select#mon, select[name='mon']");
+        if (!fy || !mon) return false;
+        const fyRect = (fy as HTMLElement).getBoundingClientRect();
+        const monRect = (mon as HTMLElement).getBoundingClientRect();
+        return fyRect.height > 0 && monRect.height > 0;
+      },
+      undefined,
+      { timeout: 25000 },
+    )
+    .catch(() => {
+      throw new Error(
+        `[returns-dashboard] Dashboard dropdowns never visible. Current URL: ${p.url()}.`,
+      );
+    });
+
+  await new Promise((r) => setTimeout(r, 1500));
 }
 
 // ── Session management ────────────────────────────────────
@@ -348,20 +422,20 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
     }
 
     session = { browser, context, page, gstin };
-  } else {
-    // Verify the live session is still on returns dashboard
-    try {
-      await verifyPageOpen(
-        session.page,
-        "returns-dashboard-recheck",
-        ["return.gst.gov.in/returns/auth"],
-        ["select#fin", "select#mon", ".btn-search", "body"],
-        8000,
-      );
-    } catch {
-      await establishReturnsSession(session.page);
-    }
   }
+
+  // The GSTR-2B API call uses session.context.request, which carries
+  // the BrowserContext's cookies independently of whatever Page is
+  // currently focused. We DON'T need the page to be on the dashboard
+  // first — the auth cookies are sufficient. Earlier code did a Page-
+  // level dashboard verify here as a "sanity check" and then would
+  // hard-fail when GSTN's post-login modal gauntlet bounced the page
+  // to /accessdenied. That was a false negative; the cookies were
+  // fine.
+  //
+  // We still try a best-effort dashboard establish below ON FAILURE
+  // (401/403 from the API call), so a genuinely-stale session gets
+  // re-warmed before retrying. But the upfront verify is gone.
 
   // Random delay before firing the API call
   await new Promise((r) => setTimeout(r, 400 + Math.floor(Math.random() * 600)));
@@ -376,15 +450,31 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
     `https://gstr2b.gst.gov.in/gstr2b/auth/gstr2bdwld?rtnprd=${period}`,
     `https://gstr2b.gst.gov.in/gstr2b/auth/api/gstr2b/getjson?rtnprd=${period}`,
   ];
+  // Try each endpoint. On 401/403 (auth expired), re-establish the
+  // dashboard once and retry the same endpoint — covers the case where
+  // cookies are still present in the jar but GSTN has invalidated the
+  // session token server-side.
   let resp;
   let lastStatus = 0;
+  let triedReauth = false;
   for (const url of endpoints) {
     resp = await session.context.request.get(url, {
       headers: { Referer: "https://return.gst.gov.in/returns/auth/dashboard" },
     });
     lastStatus = resp.status();
-    if (lastStatus === 404 || lastStatus === 410) {
-      continue;
+    if (lastStatus === 404 || lastStatus === 410) continue;
+    if ((lastStatus === 401 || lastStatus === 403) && !triedReauth) {
+      triedReauth = true;
+      try {
+        await establishReturnsSession(session.page);
+      } catch {
+        // dashboard re-establish failed; fall through to error below
+      }
+      // Retry once on the same URL after re-warm.
+      resp = await session.context.request.get(url, {
+        headers: { Referer: "https://return.gst.gov.in/returns/auth/dashboard" },
+      });
+      lastStatus = resp.status();
     }
     break;
   }
@@ -457,7 +547,21 @@ export function runPortalServer(app: Express): void {
       await new Promise((r) => setTimeout(r, 3000));
 
       if (isOnDashboard(session.page.url())) {
-        await establishReturnsSession(session.page);
+        // Login itself succeeded — captcha was accepted, cookies are
+        // valid. The subsequent dashboard hand-off is best-effort: if
+        // the post-login modal gauntlet (Aadhaar / e-KYC / access-denied
+        // bounce) trips it, the cookies are still good and the GSTR-2B
+        // API call will use them directly without needing the dashboard
+        // to be loaded in a Page.
+        try {
+          await establishReturnsSession(session.page);
+        } catch (err) {
+          console.warn(
+            `[helper] establishReturnsSession failed after captcha (non-fatal): ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
         await saveCookies(gstin, await session.context.cookies());
         return res.json({ ok: true, step: "done", message: "Logged in (no OTP)" });
       }
