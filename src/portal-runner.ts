@@ -295,6 +295,11 @@ async function startSession(
   //   2. We use a real Chrome User-Agent string
   //   3. We use window.open + page.evaluate for the gstr2b popup,
   //      which behaves identically headless or headed.
+  // 2026-05-10: flipped back to headless:true for production. The
+  // 2026-05-08 debug visibility flip is no longer needed — the
+  // popup-WAF dance is proven and FillGST shows captcha images in
+  // its own modal. Truly invisible fetches: only FillGST's UI
+  // appears; no Chrome window pops up at all.
   const browser = await launchUserBrowser({ headless: true });
 
   const storedCookies = await loadCookies(gstin);
@@ -419,6 +424,9 @@ async function fetch2b(gstin: string, period: string): Promise<{ data: unknown; 
     if (!cookies) {
       throw new Error("No active session and no stored cookies. Login first.");
     }
+    // 2026-05-10: headless:true for production (was headed for
+    // debug 2026-05-08 → 2026-05-10). The popup-WAF dance is proven
+    // headless-or-headed; FillGST UI handles all user-facing prompts.
     const browser = await launchUserBrowser({ headless: true });
     const ctxOpts: BrowserContextOptions = {
       userAgent: UA,
@@ -622,6 +630,8 @@ async function ensureReturnsSession(gstin: string): Promise<Session> {
   if (!cookies) {
     throw new Error("No active session and no stored cookies. Login first.");
   }
+  // 2026-05-10: headless:true for production (was headed for debug
+  // 2026-05-08 → 2026-05-10). Truly invisible: no Chrome window pops up.
   const browser = await launchUserBrowser({ headless: true });
   const ctxOpts: BrowserContextOptions = {
     userAgent: UA,
@@ -801,7 +811,25 @@ export function runPortalServer(app: Express): void {
       await new Promise((r) => setTimeout(r, 300));
       // Click login
       await session.page.click('button[type="submit"]').catch(() => {});
-      await new Promise((r) => setTimeout(r, 3000));
+
+      // 2026-05-10: replace fixed 3 s wait with active URL polling up
+      // to 15 s. The auth handshake chain (POST /Authentication →
+      // 302 /auth/fowelcome → maybe → /auth/dashboard) sometimes
+      // takes more than 3 s under load, especially headless. Match
+      // the extension's v0.7.8 pattern.
+      const captchaDeadline = Date.now() + 15000;
+      while (Date.now() < captchaDeadline) {
+        const u = session.page.url();
+        if (isOnDashboard(u)) break;
+        if (/\/services\/error\/accessdenied/i.test(u)) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      // Extra 4 s for cross-subdomain cookies (gstr2b TS-cookie ride)
+      // to propagate before fetch2b launches. v0.7.8 lesson.
+      if (isOnDashboard(session.page.url())) {
+        await new Promise((r) => setTimeout(r, 4000));
+      }
 
       if (isOnDashboard(session.page.url())) {
         // Login succeeded. We deliberately DO NOT navigate to
@@ -832,7 +860,27 @@ export function runPortalServer(app: Express): void {
       if (otpVisible) {
         return res.json({ ok: true, step: "otp", message: "Enter OTP" });
       }
-      return res.json({ ok: false, error: "Unexpected state after captcha" });
+      // /accessdenied bounce?
+      const finalUrl = session.page.url();
+      if (/\/services\/error\/accessdenied/i.test(finalUrl)) {
+        return res.json({
+          ok: false,
+          error:
+            "GSTN bounced login to /accessdenied — account/IP may be flagged (Aadhaar/e-KYC pending or short-term IP throttle).",
+        });
+      }
+      // Wrong captcha? Page would still be /services/login with a
+      // fresh captcha image swapped in.
+      if (/\/services\/login/i.test(finalUrl)) {
+        return res.json({
+          ok: false,
+          error: "Wrong captcha — try again",
+        });
+      }
+      return res.json({
+        ok: false,
+        error: `Unexpected state after captcha — page is at ${finalUrl}`,
+      });
     } catch (err) {
       return res.status(500).json({
         ok: false,
