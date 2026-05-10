@@ -33,34 +33,48 @@ const VERSION = "0.4.0";
 
 const app = express();
 
+// Single-source-of-truth allowlist used by both the CORS check and the
+// Private Network Access (PNA) header echo below.
+function isAllowedOrigin(origin: string): boolean {
+  return (
+    origin === "https://fillgst.com" ||
+    origin === "https://fillgst.in" ||
+    origin === "https://fillgst.ai" ||
+    origin === "https://fillgst.vercel.app" ||
+    /^https:\/\/[a-z0-9-]+\.fillgst\.(com|in|ai)$/.test(origin) ||
+    /^https:\/\/fillgst-[a-z0-9-]+\.vercel\.app$/.test(origin) ||
+    origin.startsWith("http://localhost") ||
+    origin.startsWith("http://127.0.0.1") ||
+    origin.startsWith("http://192.168.") ||
+    origin.startsWith("http://10.") ||
+    origin.startsWith("http://172.")
+  );
+}
+
+// 2026-05-10: Chrome Private Network Access (PNA) preflight support.
+//
+// When fillgst.com (HTTPS, public) makes a request to localhost:9876
+// (HTTP, loopback) Chrome considers that a "private network access".
+// Since Chrome 130+ the browser sends an extra preflight header
+// `Access-Control-Request-Private-Network: true` and refuses the call
+// unless the server responds with `Access-Control-Allow-Private-Network:
+// true`. The default `cors` middleware doesn't echo this header, so we
+// add it here. MUST run before cors() so the header is set on the same
+// response cors() ends for OPTIONS preflight.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+  }
+  next();
+});
+
 // Allow CORS from cloud FillGST domains + any LAN origin (Local Edition).
 app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true);
-
-      // Cloud Edition
-      if (
-        origin === "https://fillgst.com" ||
-        origin === "https://fillgst.in" ||
-        origin === "https://fillgst.ai" ||
-        origin === "https://fillgst.vercel.app" ||
-        /^https:\/\/[a-z0-9-]+\.fillgst\.(com|in|ai)$/.test(origin) ||
-        /^https:\/\/fillgst-[a-z0-9-]+\.vercel\.app$/.test(origin)
-      ) {
-        return cb(null, true);
-      }
-
-      // Local Edition / dev (LAN)
-      if (
-        origin.startsWith("http://localhost") ||
-        origin.startsWith("http://127.0.0.1") ||
-        origin.startsWith("http://192.168.") ||
-        origin.startsWith("http://10.") ||
-        origin.startsWith("http://172.")
-      ) {
-        return cb(null, true);
-      }
+      if (isAllowedOrigin(origin)) return cb(null, true);
       return cb(new Error("Origin not allowed: " + origin));
     },
     credentials: false,
