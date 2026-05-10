@@ -701,10 +701,42 @@ async function fetchPortalApi(input: FetchApiInput): Promise<FetchApiResult> {
 
   const session = await ensureReturnsSession(gstin);
 
-  // Run the fetch in-page so cookies attach automatically. We pass the
-  // ABSOLUTE URL (not a relative path) so a same-origin fetch from
-  // return.gst.gov.in CAN reach services.gst.gov.in too — the cookies
-  // are on `.gst.gov.in` so they apply across subdomains.
+  // 2026-05-10: ensure the page is on the same origin as the target URL
+  // before running the in-page fetch. Cross-origin fetch (e.g. from
+  // services.gst.gov.in to return.gst.gov.in) gets CORS-blocked even
+  // though cookies are scoped to `.gst.gov.in` and would otherwise
+  // attach. Navigating once per cross-origin hop is safe — cookies
+  // persist across subdomains, and GSTN doesn't reset session state on
+  // navigation.
+  const currentUrl = session.page.url();
+  let currentOrigin = "";
+  try {
+    currentOrigin = new URL(currentUrl).origin;
+  } catch {
+    // Page may not have loaded a real URL yet (e.g. about:blank).
+  }
+  if (currentOrigin !== urlObj.origin) {
+    const dashboardForTarget =
+      urlObj.hostname === "return.gst.gov.in"
+        ? "https://return.gst.gov.in/returns/auth/dashboard"
+        : urlObj.hostname === "services.gst.gov.in"
+          ? "https://services.gst.gov.in/services/auth/dashboard"
+          : `${urlObj.origin}/`;
+    await session.page
+      .evaluate((u: string) => {
+        window.location.href = u;
+      }, dashboardForTarget)
+      .catch(() => {});
+    await session.page
+      .waitForLoadState("domcontentloaded", { timeout: 15_000 })
+      .catch(() => {});
+    // Brief settle so any client-side JS that runs after dashboard load
+    // (auth bootstraps, etc.) doesn't race the fetch.
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
+  // Run the fetch in-page so cookies attach automatically. The fetch
+  // is now same-origin with the target URL.
   const result = (await session.page.evaluate(
     async (args: {
       url: string;
